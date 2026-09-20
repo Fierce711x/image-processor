@@ -7,6 +7,7 @@ enum Filters{
   FLIP_HORIZONTAL,
   FLIP_VERTICAL,
   GRAY_SCALE,
+  BLACK_AND_WHITE,
 };
 
 class Filter {
@@ -85,6 +86,15 @@ class Image_processor {
       }
     } 
 
+    static void black_and_white(const Image& image) {
+      for (int i = 0; i < image.channels * image.height * image.width; i+= 3) {
+        int gray_value = get_gray_value(image, i);
+        int value = gray_value <= 127 ? 0 : 255;
+        image.imageData[i] = value;
+        image.imageData[i+1] = value;
+        image.imageData[i+2] = value;
+      }
+    }
 
   public: 
     Filter use_filter(Filters filter) {
@@ -97,6 +107,8 @@ class Image_processor {
           return Filter(flip_vertical);
         case GRAY_SCALE:
           return Filter(gray_scale);
+        case BLACK_AND_WHITE: 
+          return Filter(black_and_white);
       }
       throw std::invalid_argument("Unknown filter type provided.");
     }
@@ -106,7 +118,7 @@ int main() {
   Image_processor processor;
   Image image("luffy.jpg");
 
-  processor.use_filter(GRAY_SCALE).with_image(image);
+  processor.use_filter(BLACK_AND_WHITE).with_image(image);
   image.saveImage("double-flip.jpg");
   return 0;
 }
