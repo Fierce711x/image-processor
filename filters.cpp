@@ -4,6 +4,7 @@
 
 enum Filters{
   INVERT,
+  FLIP_HORIZONTAL,
 };
 
 class Filter {
@@ -26,12 +27,38 @@ class Image_processor {
       }
     }
 
+    static void flip_horizontal(const Image& image) {
+      int channels = image.channels;
+      int row_length = image.width * channels;
+
+      for (int i = 0; i < image.height; i++) {
+        int l = 0, r = (image.width - 1) * image.channels;
+        int start_index = row_length * i;
+        while (l < r) {
+
+          for (int c = 0; c < channels; c++) {
+            int left_pixle_channel_index = start_index + l + c;
+            int right_pixle_channel_index = start_index + r + c;
+
+            int temp = image.imageData[left_pixle_channel_index];
+            image.imageData[left_pixle_channel_index] = image.imageData[right_pixle_channel_index];
+            image.imageData[right_pixle_channel_index] = temp;
+          }
+
+          l += channels;
+          r -= channels;
+        }
+      }
+    }
+
 
   public: 
     Filter use_filter(Filters filter) {
       switch (filter) {
         case INVERT: 
           return Filter(invert);
+        case FLIP_HORIZONTAL:
+          return Filter(flip_horizontal);
       }
       throw std::invalid_argument("Unknown filter type provided.");
     }
@@ -41,7 +68,7 @@ int main() {
   Image_processor processor;
   Image image("luffy.jpg");
 
-  processor.use_filter(INVERT).with_image(image);
+  processor.use_filter(FLIP_HORIZONTAL).with_image(image);
   image.saveImage("double-flip.jpg");
   return 0;
 }
