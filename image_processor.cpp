@@ -1,8 +1,8 @@
 #include "Image_Class.h"
-#include <iostream>
 #include <functional>
-
-enum Filters{
+#include <stdexcept> 
+#include <vector>
+enum class Filters{
   INVERT,
   FLIP_HORIZONTAL,
   FLIP_VERTICAL,
@@ -10,13 +10,30 @@ enum Filters{
   BLACK_AND_WHITE,
 };
 
+// class my_image {
+//   private:
+//     std::vector<unsigned char*> images;
+//     Image current_image;
+//     void free_image(unsigned char* imageData) {
+//       stbi_image_free(imageData);
+//     }
+//   public:
+//     void load_image(std::string filename) {
+//       if (current_image.imageData != nullptr) {
+//         images.push_back(current_image.imageData);
+//         current_image.imageData == nullptr;
+//       }
+//       current_image.loadNewImage(filename);
+//     }
+// };
+
 class Filter {
   private: 
     std::function<void(const Image&)> filter;
 
   public: 
     Filter(std::function<void(const Image&)> filter): filter(filter) {}
-    const Image& with_image(const Image& image) {
+    const Image& on_image(const Image& image) {
       filter(image);
       return image;
     }
@@ -78,7 +95,7 @@ class Image_processor {
     }
 
     static void gray_scale(const Image& image) {
-      for (int i = 0; i < image.channels * image.height * image.width; i+= 3) {
+      for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
         int gray_value = get_gray_value(image, i);
         image.imageData[i] = gray_value;
         image.imageData[i+1] = gray_value;
@@ -87,7 +104,7 @@ class Image_processor {
     } 
 
     static void black_and_white(const Image& image) {
-      for (int i = 0; i < image.channels * image.height * image.width; i+= 3) {
+      for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
         int gray_value = get_gray_value(image, i);
         int value = gray_value <= 127 ? 0 : 255;
         image.imageData[i] = value;
@@ -99,15 +116,15 @@ class Image_processor {
   public: 
     Filter use_filter(Filters filter) {
       switch (filter) {
-        case INVERT: 
+        case Filters::INVERT: 
           return Filter(invert);
-        case FLIP_HORIZONTAL:
+        case Filters::FLIP_HORIZONTAL:
           return Filter(flip_horizontal);
-        case FLIP_VERTICAL: 
+        case Filters::FLIP_VERTICAL: 
           return Filter(flip_vertical);
-        case GRAY_SCALE:
+        case Filters::GRAY_SCALE:
           return Filter(gray_scale);
-        case BLACK_AND_WHITE: 
+        case Filters::BLACK_AND_WHITE: 
           return Filter(black_and_white);
       }
       throw std::invalid_argument("Unknown filter type provided.");
@@ -115,10 +132,8 @@ class Image_processor {
 };
 
 int main() {
-  Image_processor processor;
   Image image("luffy.jpg");
-
-  processor.use_filter(BLACK_AND_WHITE).with_image(image);
-  image.saveImage("double-flip.jpg");
-  return 0;
+  Image_processor processor;
+  processor.use_filter(Filters::BLACK_AND_WHITE).on_image(image);
+  image.saveImage("invert.jpg");
 }
