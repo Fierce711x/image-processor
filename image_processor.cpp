@@ -2,6 +2,9 @@
 #include <functional>
 #include <stdexcept> 
 #include <vector>
+
+// put an enum for your filter here all in caps when adding your filter
+// then to access that name later just do Filters::YOUR_FILTER_NAME
 enum class Filters{
   INVERT,
   FLIP_HORIZONTAL,
@@ -9,24 +12,6 @@ enum class Filters{
   GRAY_SCALE,
   BLACK_AND_WHITE,
 };
-
-// class my_image {
-//   private:
-//     std::vector<unsigned char*> images;
-//     Image current_image;
-//     void free_image(unsigned char* imageData) {
-//       stbi_image_free(imageData);
-//     }
-//   public:
-//     void load_image(std::string filename) {
-//       if (current_image.imageData != nullptr) {
-//         images.push_back(current_image.imageData);
-//         current_image.imageData == nullptr;
-//       }
-//       current_image.loadNewImage(filename);
-//     }
-// };
-
 class Filter {
   private: 
     std::function<void(const Image&)> filter;
@@ -41,6 +26,7 @@ class Filter {
 
 class Image_processor {
   private: 
+    // Put your filter here as it is, but use the keyword static before it.
     static void invert(const Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i++) {
         image.imageData[i] = ~image.imageData[i];
