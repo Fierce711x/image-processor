@@ -44,15 +44,19 @@ class Filter {
     }
 };
 
+
+     
 class Image_processor {
   private: 
     // Put your filter here as it is, but use the keyword static before it.
-    static void invert(const Image& image) {
-      for (int i = 0; i < image.channels * image.height * image.width; i++) {
-        image.imageData[i] = ~image.imageData[i];
+    static void invert(const Image& image){
+      for(int i=0;i<(image.height*image.width*image.channels);i+=image.channels){
+        image.imageData[i] = 255-image.imageData[i];
+        image.imageData[i+1] = 255-image.imageData[i+1];
+        image.imageData[i+2] = 255-image.imageData[i+2];
       }
     }
-
+    //Ahmed Shiref 20250033
     static void flip_horizontal(const Image& image) {
       int channels = image.channels;
       int row_length = image.width * channels;
@@ -119,6 +123,10 @@ class Image_processor {
       }
     }
 
+   
+
+
+
   public: 
     Filter use_filter(Filters filter) {
       // add your enum and filter as a case in the swtich statment
@@ -139,8 +147,8 @@ class Image_processor {
 };
 
 int main() {
-  Image image("luffy.jpg");
+  Image image("input.jpg");
   Image_processor processor;
-  processor.use_filter(Filters::BLACK_AND_WHITE).on_image(image);
+  processor.use_filter(Filters::INVERT).on_image(image);
   image.saveImage("invert.jpg");
 }
