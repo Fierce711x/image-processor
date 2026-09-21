@@ -3,8 +3,28 @@
 #include <stdexcept> 
 #include <vector>
 
+// ignore this class, this is for gui.
+
+// class my_image {
+//   private:
+//     std::vector<unsigned char*> images;
+//     Image current_image;
+//     void free_image(unsigned char* imageData) {
+//       stbi_image_free(imageData);
+//     }
+//   public:
+//     void load_image(std::string filename) {
+//       if (current_image.imageData != nullptr) {
+//         images.push_back(current_image.imageData);
+//         current_image.imageData == nullptr;
+//       }
+//       current_image.loadNewImage(filename);
+//     }
+// };
+
 // put an enum for your filter here all in caps when adding your filter
 // then to access that name later just do Filters::YOUR_FILTER_NAME
+
 enum class Filters{
   INVERT,
   FLIP_HORIZONTAL,
@@ -101,6 +121,7 @@ class Image_processor {
 
   public: 
     Filter use_filter(Filters filter) {
+      // add your enum and filter as a case in the swtich statment
       switch (filter) {
         case Filters::INVERT: 
           return Filter(invert);
