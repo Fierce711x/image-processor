@@ -2,6 +2,8 @@
 #include <functional>
 #include <stdexcept> 
 #include <vector>
+#include <cstdint>
+#include<algorithm>
 
 // ignore this class, this is for gui.
 
@@ -31,6 +33,8 @@ enum class Filters{
   FLIP_VERTICAL,
   GRAY_SCALE,
   BLACK_AND_WHITE,
+  Light,
+  Dark,
 };
 class Filter {
   private: 
@@ -57,6 +61,34 @@ class Image_processor {
       }
     }
     //Ahmed Shiref 20250033
+
+
+    static void light(const Image& image){
+      for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
+        int r= static_cast<int>(image.imageData[i]*1.5f);
+        int g = static_cast<int>(image.imageData[i+1]*1.5f);
+        int b = static_cast<int>(image.imageData[i+1]*1.5f);
+
+        image.imageData[i]=static_cast<uint8_t>(std::clamp(r,0,255));
+        image.imageData[i+1] = static_cast<uint8_t>(std::clamp(g,0,255));
+        image.imageData[i+2] = static_cast<uint8_t>(std::clamp(b,0,255));
+      }
+    }
+    //Ahmed Shiref 20250033
+
+    
+    static void dark(const Image& image){
+      for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
+        int r= static_cast<int>(image.imageData[i]*0.5f);
+        int g = static_cast<int>(image.imageData[i+1]*0.5f);
+        int b = static_cast<int>(image.imageData[i+1]*0.5f);
+
+        image.imageData[i]=static_cast<int8_t>(std::clamp(r,0,255));
+        image.imageData[i+1] = static_cast<int8_t>(std::clamp(g,0,255));
+        image.imageData[i+2] = static_cast<int8_t>(std::clamp(b,0,255));
+      }
+    }
+
     static void flip_horizontal(const Image& image) {
       int channels = image.channels;
       int row_length = image.width * channels;
@@ -141,6 +173,10 @@ class Image_processor {
           return Filter(gray_scale);
         case Filters::BLACK_AND_WHITE: 
           return Filter(black_and_white);
+        case Filters::Light:
+          return Filter(light);
+        case Filters::Dark:
+          return Filter(dark);
       }
       throw std::invalid_argument("Unknown filter type provided.");
     }
@@ -149,6 +185,6 @@ class Image_processor {
 int main() {
   Image image("input.jpg");
   Image_processor processor;
-  processor.use_filter(Filters::INVERT).on_image(image);
-  image.saveImage("invert.jpg");
+  processor.use_filter(Filters::Dark).on_image(image);
+  image.saveImage("dark.jpg");
 }
