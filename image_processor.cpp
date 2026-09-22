@@ -29,12 +29,14 @@
 
 enum class Filters{
   INVERT,
+  Light,
+  Dark,
   FLIP_HORIZONTAL,
   FLIP_VERTICAL,
   GRAY_SCALE,
   BLACK_AND_WHITE,
-  Light,
-  Dark,
+  PURPLE,
+  INFRARED,
 };
 class Filter {
   private: 
@@ -48,28 +50,24 @@ class Filter {
     }
 };
 
-
-     
 class Image_processor {
   private: 
     // Put your filter here as it is, but use the keyword static before it.
-    static void invert(const Image& image){
-      for(int i=0;i<(image.height*image.width*image.channels);i+=image.channels){
-        image.imageData[i] = 255-image.imageData[i];
-        image.imageData[i+1] = 255-image.imageData[i+1];
-        image.imageData[i+2] = 255-image.imageData[i+2];
+    static void invert(const Image& image) {
+      for (int i = 0; i < image.channels * image.height * image.width; i++) {
+        image.imageData[i] = ~image.imageData[i];
       }
     }
-    //Ahmed Shiref 20250033
+
 
 
     static void light(const Image& image){
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
-        int r= static_cast<int>(image.imageData[i]*1.5f);
-        int g = static_cast<int>(image.imageData[i+1]*1.5f);
-        int b = static_cast<int>(image.imageData[i+1]*1.5f);
+        int r=  image.imageData[i]*1.5f;
+        int g = image.imageData[i+1]*1.5f;
+        int b = image.imageData[i+2]*1.5f;
 
-        image.imageData[i]=static_cast<uint8_t>(std::clamp(r,0,255));
+        image.imageData[i]= static_cast<uint8_t>(std::clamp(r,0,255));
         image.imageData[i+1] = static_cast<uint8_t>(std::clamp(g,0,255));
         image.imageData[i+2] = static_cast<uint8_t>(std::clamp(b,0,255));
       }
@@ -79,16 +77,16 @@ class Image_processor {
     
     static void dark(const Image& image){
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
-        int r= static_cast<int>(image.imageData[i]*0.5f);
-        int g = static_cast<int>(image.imageData[i+1]*0.5f);
-        int b = static_cast<int>(image.imageData[i+1]*0.5f);
+        int r =  image.imageData[i]*0.5f;
+        int g =  image.imageData[i+1]*0.5f;
+        int b =  image.imageData[i+2]*0.5f;
 
-        image.imageData[i]=static_cast<int8_t>(std::clamp(r,0,255));
-        image.imageData[i+1] = static_cast<int8_t>(std::clamp(g,0,255));
-        image.imageData[i+2] = static_cast<int8_t>(std::clamp(b,0,255));
+        image.imageData[i]= static_cast<uint8_t>(std::clamp(r,0,255));
+        image.imageData[i+1] = static_cast<uint8_t>(std::clamp(g,0,255));
+        image.imageData[i+2] = static_cast<uint8_t>(std::clamp(b,0,255));
       }
     }
-
+    // Ahmed Shiref 20250033
     static void flip_horizontal(const Image& image) {
       int channels = image.channels;
       int row_length = image.width * channels;
@@ -129,7 +127,7 @@ class Image_processor {
       }
     }
 
-    static int get_gray_value(const Image& image, int pixleIndex) {
+    static int get_brightness(const Image& image, int pixleIndex) {
       int r = image.imageData[pixleIndex];
       int g = image.imageData[pixleIndex+1];
       int b = image.imageData[pixleIndex+2];
@@ -138,7 +136,7 @@ class Image_processor {
 
     static void gray_scale(const Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
-        int gray_value = get_gray_value(image, i);
+        int gray_value = get_brightness(image, i);
         image.imageData[i] = gray_value;
         image.imageData[i+1] = gray_value;
         image.imageData[i+2] = gray_value;
@@ -147,7 +145,7 @@ class Image_processor {
 
     static void black_and_white(const Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
-        int gray_value = get_gray_value(image, i);
+        int gray_value = get_brightness(image, i);
         int value = gray_value <= 127 ? 0 : 255;
         image.imageData[i] = value;
         image.imageData[i+1] = value;
@@ -155,9 +153,32 @@ class Image_processor {
       }
     }
 
-   
+    static void purple(const Image& image) {
+      for (int i = 0; i < image.channels * image.height * image.width; i += image.channels) { 
+        // image.imageData[i] = std::min(255, image.imageData[i] + 90); 
+        image.imageData[i+1] = std::max(0, image.imageData[i+1] - 60); 
+        // image.imageData[i+2] = std::min(255, image.imageData[i+2] + 90); 
+      }
+    }
 
+    static void infrared(const Image& image) {
+      for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
+        int brightness = get_brightness(image, i);
+        int targetValue = 255 - brightness; 
 
+        image.imageData[i] = 255;
+
+        if (targetValue < 128) {
+            float t = targetValue / 127.0f;
+            image.imageData[i+1] = t * 100;
+            image.imageData[i+2] = t * 110;
+        } else {
+            float t = (targetValue - 128) / 127.0f;
+            image.imageData[i+1] = 100 + t * (255 - 100);
+            image.imageData[i+2] = 110 + t * (255 - 110);
+        }
+      }
+    }
 
   public: 
     Filter use_filter(Filters filter) {
@@ -173,6 +194,10 @@ class Image_processor {
           return Filter(gray_scale);
         case Filters::BLACK_AND_WHITE: 
           return Filter(black_and_white);
+        case Filters::PURPLE: 
+          return Filter(purple);
+        case Filters::INFRARED:
+          return Filter(infrared);
         case Filters::Light:
           return Filter(light);
         case Filters::Dark:
@@ -183,8 +208,8 @@ class Image_processor {
 };
 
 int main() {
-  Image image("input.jpg");
+  Image image("luffy.jpg");
   Image_processor processor;
-  processor.use_filter(Filters::Dark).on_image(image);
-  image.saveImage("dark.jpg");
+  processor.use_filter(Filters::PURPLE).on_image(image);
+  image.saveImage("purple.jpg");
 }
