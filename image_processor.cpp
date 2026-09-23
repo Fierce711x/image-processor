@@ -32,6 +32,7 @@ enum class Filters{
   GRAY_SCALE,
   BLACK_AND_WHITE,
   PURPLE,
+  INFRARED,
 };
 class Filter {
   private: 
@@ -45,19 +46,15 @@ class Filter {
     }
 };
 
-
-     
 class Image_processor {
   private: 
     // Put your filter here as it is, but use the keyword static before it.
-    static void invert(const Image& image){
-      for(int i=0;i<(image.height*image.width*image.channels);i+=image.channels){
-        image.imageData[i] = 255-image.imageData[i];
-        image.imageData[i+1] = 255-image.imageData[i+1];
-        image.imageData[i+2] = 255-image.imageData[i+2];
+    static void invert(const Image& image) {
+      for (int i = 0; i < image.channels * image.height * image.width; i++) {
+        image.imageData[i] = ~image.imageData[i];
       }
     }
-    //Ahmed Shiref 20250033
+
     static void flip_horizontal(const Image& image) {
       int channels = image.channels;
       int row_length = image.width * channels;
@@ -132,6 +129,25 @@ class Image_processor {
       }
     }
 
+    static void infrared(const Image& image) {
+      for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
+        int brightness = get_brightness(image, i);
+        int targetValue = 255 - brightness; 
+
+        image.imageData[i] = 255;
+
+        if (targetValue < 128) {
+            float t = targetValue / 127.0f;
+            image.imageData[i+1] = t * 100;
+            image.imageData[i+2] = t * 110;
+        } else {
+            float t = (targetValue - 128) / 127.0f;
+            image.imageData[i+1] = 100 + t * (255 - 100);
+            image.imageData[i+2] = 110 + t * (255 - 110);
+        }
+      }
+    }
+
   public: 
     Filter use_filter(Filters filter) {
       // add your enum and filter as a case in the swtich statment
@@ -148,14 +164,15 @@ class Image_processor {
           return Filter(black_and_white);
         case Filters::PURPLE: 
           return Filter(purple);
-        
+        case Filters::INFRARED:
+          return Filter(infrared);
       }
       throw std::invalid_argument("Unknown filter type provided.");
     }
 };
 
 int main() {
-  Image image("samurai.jpg");
+  Image image("luffy.jpg");
   Image_processor processor;
   processor.use_filter(Filters::PURPLE).on_image(image);
   image.saveImage("purple.jpg");
