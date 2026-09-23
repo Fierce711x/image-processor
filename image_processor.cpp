@@ -2,8 +2,6 @@
 #include <functional>
 #include <stdexcept> 
 #include <vector>
-#include <cstdint>
-#include<algorithm>
 
 // ignore this class, this is for gui.
 
@@ -37,6 +35,7 @@ enum class Filters{
   BLACK_AND_WHITE,
   PURPLE,
   INFRARED,
+  TV,
 };
 class Filter {
   private: 
@@ -58,14 +57,14 @@ class Image_processor {
         image.imageData[i] = ~image.imageData[i];
       }
     }
+    //Ahmed Shiref 20250033
 
-
-
-    static void light(const Image& image){
+    static void light(const Image& image, uint8_t brightness_level) {
+      float multiplier = brightness_level/255 + 1;
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
-        int r=  image.imageData[i]*1.5f;
-        int g = image.imageData[i+1]*1.5f;
-        int b = image.imageData[i+2]*1.5f;
+        int r=  image.imageData[i]*multiplier;
+        int g = image.imageData[i+1]*multiplier;
+        int b = image.imageData[i+2]*multiplier;
 
         image.imageData[i]= static_cast<uint8_t>(std::clamp(r,0,255));
         image.imageData[i+1] = static_cast<uint8_t>(std::clamp(g,0,255));
@@ -74,12 +73,12 @@ class Image_processor {
     }
     //Ahmed Shiref 20250033
 
-    
-    static void dark(const Image& image){
+    static void dark(const Image& image, uint8_t brightness_level) {
+      float multiplier = brightness_level/255;
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
-        int r =  image.imageData[i]*0.5f;
-        int g =  image.imageData[i+1]*0.5f;
-        int b =  image.imageData[i+2]*0.5f;
+        int r =  image.imageData[i]*multiplier;
+        int g =  image.imageData[i+1]*multiplier;
+        int b =  image.imageData[i+2]*multiplier;
 
         image.imageData[i]= static_cast<uint8_t>(std::clamp(r,0,255));
         image.imageData[i+1] = static_cast<uint8_t>(std::clamp(g,0,255));
@@ -87,6 +86,7 @@ class Image_processor {
       }
     }
     // Ahmed Shiref 20250033
+
     static void flip_horizontal(const Image& image) {
       int channels = image.channels;
       int row_length = image.width * channels;
@@ -163,20 +163,43 @@ class Image_processor {
 
     static void infrared(const Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
+        unsigned char& G = image.imageData[i+1];
+        unsigned char& B = image.imageData[i+2];
+        
         int brightness = get_brightness(image, i);
         int targetValue = 255 - brightness; 
-
         image.imageData[i] = 255;
 
         if (targetValue < 128) {
             float t = targetValue / 127.0f;
-            image.imageData[i+1] = t * 100;
-            image.imageData[i+2] = t * 110;
+            G = t * 100;
+            B = t * 110;
         } else {
             float t = (targetValue - 128) / 127.0f;
-            image.imageData[i+1] = 100 + t * (255 - 100);
-            image.imageData[i+2] = 110 + t * (255 - 110);
+            G = 100 + t * (255 - 100);
+            B = 110 + t * (255 - 110);
         }
+      }
+    }
+
+    static void television(const Image& image) {
+      int row_length = image.channels * image.width;
+      for (int i = 0; i < row_length * image.height; i+= image.channels) {
+        unsigned char& R = image.imageData[i];
+        unsigned char& G = image.imageData[i+1];
+        unsigned char& B = image.imageData[i+2];
+        int row = i / row_length;
+
+        if (row % 2 == 0) {
+          R = std::min(255, R + 20);
+          G = std::min(255, G + 20);
+          B = std::min(255, B + 20);
+        } else {
+          R = std::max(0, R - 20);
+          G = std::max(0, G - 20);
+          B = std::max(0, B - 20);
+        }
+        
       }
     }
 
@@ -186,6 +209,10 @@ class Image_processor {
       switch (filter) {
         case Filters::INVERT: 
           return Filter(invert);
+        // case Filters::Light:
+        //   return Filter(light);
+        // case Filters::Dark:
+        //   return Filter(dark);
         case Filters::FLIP_HORIZONTAL:
           return Filter(flip_horizontal);
         case Filters::FLIP_VERTICAL: 
@@ -198,10 +225,8 @@ class Image_processor {
           return Filter(purple);
         case Filters::INFRARED:
           return Filter(infrared);
-        case Filters::Light:
-          return Filter(light);
-        case Filters::Dark:
-          return Filter(dark);
+        case Filters::TV:
+          return Filter(television);
       }
       throw std::invalid_argument("Unknown filter type provided.");
     }
@@ -210,6 +235,6 @@ class Image_processor {
 int main() {
   Image image("luffy.jpg");
   Image_processor processor;
-  processor.use_filter(Filters::PURPLE).on_image(image);
-  image.saveImage("purple.jpg");
+  processor.use_filter(Filters::TV).on_image(image);
+  image.saveImage("tv.jpg");
 }
