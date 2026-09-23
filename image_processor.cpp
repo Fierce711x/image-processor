@@ -31,6 +31,7 @@ enum class Filters{
   FLIP_VERTICAL,
   GRAY_SCALE,
   BLACK_AND_WHITE,
+  PURPLE,
 };
 class Filter {
   private: 
@@ -97,7 +98,7 @@ class Image_processor {
       }
     }
 
-    static int get_gray_value(const Image& image, int pixleIndex) {
+    static int get_brightness(const Image& image, int pixleIndex) {
       int r = image.imageData[pixleIndex];
       int g = image.imageData[pixleIndex+1];
       int b = image.imageData[pixleIndex+2];
@@ -106,7 +107,7 @@ class Image_processor {
 
     static void gray_scale(const Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
-        int gray_value = get_gray_value(image, i);
+        int gray_value = get_brightness(image, i);
         image.imageData[i] = gray_value;
         image.imageData[i+1] = gray_value;
         image.imageData[i+2] = gray_value;
@@ -115,7 +116,7 @@ class Image_processor {
 
     static void black_and_white(const Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
-        int gray_value = get_gray_value(image, i);
+        int gray_value = get_brightness(image, i);
         int value = gray_value <= 127 ? 0 : 255;
         image.imageData[i] = value;
         image.imageData[i+1] = value;
@@ -123,9 +124,13 @@ class Image_processor {
       }
     }
 
-   
-
-
+    static void purple(const Image& image) {
+      for (int i = 0; i < image.channels * image.height * image.width; i += image.channels) { 
+        // image.imageData[i] = std::min(255, image.imageData[i] + 90); 
+        image.imageData[i+1] = std::max(0, image.imageData[i+1] - 60); 
+        // image.imageData[i+2] = std::min(255, image.imageData[i+2] + 90); 
+      }
+    }
 
   public: 
     Filter use_filter(Filters filter) {
@@ -141,14 +146,17 @@ class Image_processor {
           return Filter(gray_scale);
         case Filters::BLACK_AND_WHITE: 
           return Filter(black_and_white);
+        case Filters::PURPLE: 
+          return Filter(purple);
+        
       }
       throw std::invalid_argument("Unknown filter type provided.");
     }
 };
 
 int main() {
-  Image image("input.jpg");
+  Image image("samurai.jpg");
   Image_processor processor;
-  processor.use_filter(Filters::INVERT).on_image(image);
-  image.saveImage("invert.jpg");
+  processor.use_filter(Filters::PURPLE).on_image(image);
+  image.saveImage("purple.jpg");
 }
