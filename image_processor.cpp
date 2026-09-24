@@ -27,8 +27,8 @@
 
 enum class Filters{
   INVERT,
-  Light,
-  Dark,
+  LIGHT,
+  DARK,
   FLIP_HORIZONTAL,
   FLIP_VERTICAL,
   GRAY_SCALE,
@@ -37,13 +37,17 @@ enum class Filters{
   INFRARED,
   TV,
 };
+
 class Filter {
   private: 
     std::function<void(const Image&)> filter;
 
   public: 
-    Filter(std::function<void(const Image&)> filter): filter(filter) {}
-    const Image& on_image(const Image& image) {
+    template<typename Func, typename... Args>
+    Filter(const Func& filter, Args... args): filter([filter, args...](const Image& image) {
+      filter(image, args...);
+    }) {}
+    const Image& apply_to_image(const Image& image) {
       filter(image);
       return image;
     }
@@ -60,7 +64,7 @@ class Image_processor {
     //Ahmed Shiref 20250033
 
     static void light(const Image& image, uint8_t brightness_level) {
-      float multiplier = brightness_level/255 + 1;
+      float multiplier = brightness_level/255.0f + 1;
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
         int r=  image.imageData[i]*multiplier;
         int g = image.imageData[i+1]*multiplier;
@@ -74,7 +78,7 @@ class Image_processor {
     //Ahmed Shiref 20250033
 
     static void dark(const Image& image, uint8_t brightness_level) {
-      float multiplier = brightness_level/255;
+      float multiplier = 1 - brightness_level/255.0f;
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
         int r =  image.imageData[i]*multiplier;
         int g =  image.imageData[i+1]*multiplier;
@@ -204,15 +208,11 @@ class Image_processor {
     }
 
   public: 
-    Filter use_filter(Filters filter) {
+    Filter generate_filter(Filters filter) {
       // add your enum and filter as a case in the swtich statment
       switch (filter) {
         case Filters::INVERT: 
           return Filter(invert);
-        // case Filters::Light:
-        //   return Filter(light);
-        // case Filters::Dark:
-        //   return Filter(dark);
         case Filters::FLIP_HORIZONTAL:
           return Filter(flip_horizontal);
         case Filters::FLIP_VERTICAL: 
@@ -227,14 +227,26 @@ class Image_processor {
           return Filter(infrared);
         case Filters::TV:
           return Filter(television);
+        default:
+          throw std::invalid_argument("Unknown filter type provided.");
       }
-      throw std::invalid_argument("Unknown filter type provided.");
+    }
+    Filter generate_filter(Filters filter, uint8_t brightness_level) {
+      // add your enum and filter as a case in the swtich statment
+      switch (filter) {
+        case Filters::LIGHT:
+          return Filter(light, brightness_level);
+        case Filters::DARK:
+          return Filter(dark, brightness_level);
+        default:
+          throw std::invalid_argument("Unknown filter type provided.");
+      }
     }
 };
 
 int main() {
-  Image image("luffy.jpg");
+  Image image("samurai.jpg");
   Image_processor processor;
-  processor.use_filter(Filters::TV).on_image(image);
-  image.saveImage("tv.jpg");
+  processor.generate_filter(Filters::LIGHT, 100).apply_to_image(image);
+  image.saveImage("light.jpg");
 }
