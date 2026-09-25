@@ -16,19 +16,16 @@
 //     void load_image(std::string filename) {
 //       if (current_image.imageData != nullptr) {
 //         images.push_back(current_image.imageData);
-//         current_image.imageData == nullptr;
+//         current_image.imageData = nullptr;
 //       }
 //       current_image.loadNewImage(filename);
 //     }
 // };
 
-// put an enum for your filter here all in caps when adding your filter
-// then to access that name later just do Filters::YOUR_FILTER_NAME
+// Append new filter types here using UPPER_CASE naming conventions. Access via Filters::ENUM_NAME.
 
 enum class Filters{
   INVERT,
-  LIGHT,
-  DARK,
   FLIP_HORIZONTAL,
   FLIP_VERTICAL,
   GRAY_SCALE,
@@ -36,6 +33,8 @@ enum class Filters{
   PURPLE,
   INFRARED,
   TV,
+  LIGHT,
+  DARK,
   ROTATE,
 };
 
@@ -54,23 +53,57 @@ class Filter {
     Filter(const Func& filter, Args... args): filter([filter, args...](Image& image) {
       filter(image, args...);
     }) {}
-    const Image& apply_to_image(Image& image) {
+
+    void apply_to_image(Image& image) const {
       filter(image);
+    }
+};
+
+class Filterable_image {
+  private :
+    Image image;
+    std::vector<Filter> queued_filters;
+
+  public :
+    Filterable_image(const Image& image): image(image) {}
+
+    Image& apply_filters(std::vector<Filter> &filters) {
+      for (const auto& f : filters) {
+        f.apply_to_image(image);
+      }
       return image;
     }
+
+    Image& apply_filters() {
+      for (const auto& f : queued_filters) {
+        f.apply_to_image(image);
+      }
+      queued_filters.clear();
+      return image;
+    }
+
+    Filterable_image& add_filter(Filter& filter) {
+      queued_filters.push_back(filter);
+      return *this;
+    }
+
+    // I could make use of this later
+    // Filterable_Image& remove_filter() {
+    //   queued_filters.pop_back();
+    // }
 };
 
 class Image_processor {
   private: 
     // Put your filter here as it is, but use the keyword before it.
-    static void invert(const Image& image) {
+    static void invert(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i++) {
         image.imageData[i] = ~image.imageData[i];
       }
     }
     //Ahmed Shiref 20250033
 
-    static void light(const Image& image, uint8_t brightness_level) {
+    static void light(Image& image, uint8_t brightness_level) {
       float multiplier = brightness_level/255.0f + 1;
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
         int r=  image.imageData[i]*multiplier;
@@ -84,7 +117,7 @@ class Image_processor {
     }
     //Ahmed Shiref 20250033
 
-    static void dark(const Image& image, uint8_t brightness_level) {
+    static void dark(Image& image, uint8_t brightness_level) {
       float multiplier = 1 - brightness_level/255.0f;
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
         int r =  image.imageData[i]*multiplier;
@@ -98,7 +131,7 @@ class Image_processor {
     }
     // Ahmed Shiref 20250033
 
-    static void flip_horizontal(const Image& image) {
+    static void flip_horizontal(Image& image) {
       int channels = image.channels;
       int row_length = image.width * channels;
 
@@ -122,7 +155,7 @@ class Image_processor {
       }
     }
 
-    static void flip_vertical(const Image& image) {
+    static void flip_vertical(Image& image) {
       int channels = image.channels;
       int row_length = image.width * channels;
 
@@ -138,14 +171,14 @@ class Image_processor {
       }
     }
 
-    static int get_brightness(const Image& image, int pixleIndex) {
+    static int get_brightness(Image& image, int pixleIndex) {
       int r = image.imageData[pixleIndex];
       int g = image.imageData[pixleIndex+1];
       int b = image.imageData[pixleIndex+2];
       return r*0.2126 + g*0.7152 + b*0.0722;
     }
 
-    static void gray_scale(const Image& image) {
+    static void gray_scale(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
         int gray_value = get_brightness(image, i);
         image.imageData[i] = gray_value;
@@ -154,7 +187,7 @@ class Image_processor {
       }
     } 
 
-    static void black_and_white(const Image& image) {
+    static void black_and_white(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
         int gray_value = get_brightness(image, i);
         int value = gray_value <= 127 ? 0 : 255;
@@ -164,7 +197,7 @@ class Image_processor {
       }
     }
 
-    static void purple(const Image& image) {
+    static void purple(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i += image.channels) { 
         // image.imageData[i] = std::min(255, image.imageData[i] + 90); 
         image.imageData[i+1] = std::max(0, image.imageData[i+1] - 60); 
@@ -172,7 +205,7 @@ class Image_processor {
       }
     }
 
-    static void infrared(const Image& image) {
+    static void infrared(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
         unsigned char& G = image.imageData[i+1];
         unsigned char& B = image.imageData[i+2];
@@ -193,7 +226,7 @@ class Image_processor {
       }
     }
 
-    static void television(const Image& image) {
+    static void television(Image& image) {
       int row_length = image.channels * image.width;
       for (int i = 0; i < row_length * image.height; i+= image.channels) {
         unsigned char& R = image.imageData[i];
@@ -252,9 +285,8 @@ class Image_processor {
     }
 
   public: 
-    Filter generate_filter(Filters filter) {
-      // add your enum and filter as a case in the swtich statment
-      switch (filter) {
+    Filter generate_filter(Filters filter_type) {
+      switch (filter_type) {
         case Filters::INVERT: 
           return Filter(invert);
         case Filters::FLIP_HORIZONTAL:
@@ -271,31 +303,59 @@ class Image_processor {
           return Filter(infrared);
         case Filters::TV:
           return Filter(television);
+        case Filters::LIGHT:
+        case Filters::DARK:
+        case Filters::ROTATE:
+          throw std::invalid_argument("Error: This filter requires configuration arguments.");
         default:
           throw std::invalid_argument("Unknown filter type provided.");
       }
     }
-    Filter generate_filter(Filters filter, uint8_t brightness_level) {
-      // add your enum and filter as a case in the swtich statment
-      switch (filter) {
+    Filter generate_filter(Filters filter_type, uint8_t brightness_level) {
+      switch (filter_type) {
         case Filters::LIGHT:
           return Filter(light, brightness_level);
         case Filters::DARK:
           return Filter(dark, brightness_level);
-        default:
-          throw std::invalid_argument("Unknown filter type provided.");
+        default: 
+          throw std::invalid_argument("Error: This filter does not accept a brightness parameter.");
       }
     }
 
-    Filter generate_filter(Filters filter, Deg deg) {
-      // add your enum and filter as a case in the swtich statment
-      return Filter(rotate, deg);
+    Filter generate_filter(Filters filter_type, Deg rotation_degree) {
+      if (filter_type == Filters::ROTATE) {
+          return Filter(Image_processor::rotate, rotation_degree);
+      }
+      throw std::invalid_argument("Error: This filter does not accept a rotation parameter.");
+    }
+
+    static const Filterable_image create_filterable_image(const Image &image) {
+      return Filterable_image(image);
     }
 };
 
 int main() {
-  Image image("samurai.jpg");
+  Image image("luffy.jpg");
   Image_processor processor;
-  processor.generate_filter(Filters::ROTATE, Deg::DEG180).apply_to_image(image);
-  image.saveImage("rotate180deg.jpg");
+
+  // this is the first way of applying filters:
+  // - it generates a single filter at a time and then apply it to an image;
+  // - for multiple filters you need to repeat the expression for each filiter
+  // - it mutates the original image passed to it and it doesn't return the image
+  // - example:
+  // --> processor.generate_filter(Filters::ROTATE, Deg::DEG180).apply_to_image(image);
+  // --> image.saveImage("rotate180deg.jpg");
+
+  // this is the second way of applying filters:
+  // - it generates a filterable_image and you can apply multiple filters all at once;
+  // - the apply_filters method accepts a vector of Filter instances that can be created through the generate_filter from the image_processor
+  // - it doesn't modify the origianl image and returns a new image after applying the filters that is an instance from the original Image class so you can save it
+  // - instead of passing a vector, you can also just do add method chaining and then in the end use the apply_filters with empty argumenst
+  // - example:
+  // --> Filterable_image img = Image_processor::create_filterable_image(image);
+  // --> std::vector<Filter> filters({processor.generate_filter(Filters::GRAY_SCALE), processor.generate_filter(Filters::ROTATE, Deg::DEG90)});
+  // --> img.apply_filters(filters).saveImage("gray-rotate90deg.jpg");
+  // or
+  // --> Filterable_image img = Image_processor::create_filterable_image(image);
+  // --> img.add_filter(processor.generate_filter(Filters::GRAY_SCALE)).add_filter(processor.generate_filter(Filters::ROTATE, Deg::DEG90)).apply_filter();
 }
