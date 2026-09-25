@@ -36,18 +36,25 @@ enum class Filters{
   PURPLE,
   INFRARED,
   TV,
+  ROTATE,
+};
+
+enum class Deg {
+  DEG90,
+  DEG180,
+  DEG270,
 };
 
 class Filter {
   private: 
-    std::function<void(const Image&)> filter;
+    std::function<void(Image&)> filter;
 
   public: 
     template<typename Func, typename... Args>
-    Filter(const Func& filter, Args... args): filter([filter, args...](const Image& image) {
+    Filter(const Func& filter, Args... args): filter([filter, args...](Image& image) {
       filter(image, args...);
     }) {}
-    const Image& apply_to_image(const Image& image) {
+    const Image& apply_to_image(Image& image) {
       filter(image);
       return image;
     }
@@ -55,7 +62,7 @@ class Filter {
 
 class Image_processor {
   private: 
-    // Put your filter here as it is, but use the keyword static before it.
+    // Put your filter here as it is, but use the keyword before it.
     static void invert(const Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i++) {
         image.imageData[i] = ~image.imageData[i];
@@ -207,6 +214,43 @@ class Image_processor {
       }
     }
 
+    static void rotate(Image& image, Deg deg) {
+      if (deg == Deg::DEG90) {
+        Image new_image(image.height, image.width);
+        int row_length = new_image.width * new_image.channels;
+        for (int i = 0; i < image.width * image.height; i++) {
+          int current_row = i / image.width;
+          int pixle_in_row = i % image.width;
+          new_image.imageData[(new_image.width * (pixle_in_row + 1) - 1 - current_row) * image.channels] = image.imageData[i*3];
+          new_image.imageData[(new_image.width * (pixle_in_row + 1) - 1 - current_row) * image.channels + 1] = image.imageData[i*3+1];
+          new_image.imageData[(new_image.width * (pixle_in_row + 1) - 1 - current_row) * image.channels + 2] = image.imageData[i*3+2];
+        }
+        image = new_image;
+      } else if (deg == Deg::DEG270) {
+        Image new_image(image.height, image.width);
+        int row_length = new_image.width * new_image.channels;
+        for (int i = 0; i < image.width * image.height; i++) {
+          int current_row = i / image.width;
+          int pixle_in_row = i % image.width;
+          new_image.imageData[(new_image.width * (new_image.height - (pixle_in_row + 1)) + current_row) * image.channels] = image.imageData[i*3];
+          new_image.imageData[(new_image.width * (new_image.height - (pixle_in_row + 1)) + current_row) * image.channels + 1] = image.imageData[i*3+1];
+          new_image.imageData[(new_image.width * (new_image.height - (pixle_in_row + 1)) + current_row) * image.channels + 2] = image.imageData[i*3+2];
+        }
+        image = new_image;
+      } else if (deg == Deg::DEG180) {
+        Image new_image(image.width, image.height);
+        int row_length = new_image.width * new_image.channels;
+        for (int i = 0; i < image.width * image.height; i++) {
+          new_image.imageData[(new_image.width * new_image.height - (1 + i)) * image.channels] = image.imageData[i*3];
+          new_image.imageData[(new_image.width * new_image.height - (1 + i)) * image.channels + 1] = image.imageData[i*3+1];
+          new_image.imageData[(new_image.width * new_image.height - (1 + i)) * image.channels + 2] = image.imageData[i*3+2];
+        }
+        image = new_image;
+      } else {
+        throw std::invalid_argument("Unknown rotation degree provided.");
+      }
+    }
+
   public: 
     Filter generate_filter(Filters filter) {
       // add your enum and filter as a case in the swtich statment
@@ -242,11 +286,16 @@ class Image_processor {
           throw std::invalid_argument("Unknown filter type provided.");
       }
     }
+
+    Filter generate_filter(Filters filter, Deg deg) {
+      // add your enum and filter as a case in the swtich statment
+      return Filter(rotate, deg);
+    }
 };
 
 int main() {
   Image image("samurai.jpg");
   Image_processor processor;
-  processor.generate_filter(Filters::LIGHT, 100).apply_to_image(image);
-  image.saveImage("light.jpg");
+  processor.generate_filter(Filters::ROTATE, Deg::DEG180).apply_to_image(image);
+  image.saveImage("rotate180deg.jpg");
 }
