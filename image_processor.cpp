@@ -38,6 +38,7 @@ enum class Filters{
   DARK,
   ROTATE,
   SUNNY,
+  MERGE,
 };
 
 enum class Deg {
@@ -286,6 +287,41 @@ class Image_processor {
       }
     }
 
+
+    static Image merge(const Image& image1, const Image& image2){
+      Image result;
+      if(image1.width==image2.width && image1.height==image2.height){
+         result.width= image1.width;
+         result.height= image1.height;
+      }
+      else{
+        int width = std::min(image1.width,image2.width);
+        int height = std::min(image1.height,image2.height);
+        result.width=width;
+        result.height=height;
+      }
+
+      for(int y=0;y<result.height;y++){
+        for(int x=0;x<result.width;x++){
+
+          int idx1 = (y*image1.width+x)*image1.channels;
+          int idx2 = (y*image2.width+x)*image2.channels;
+          int outidx = (y*result.width+x)*result.channels;
+
+          int blendedR = (image1.imageData[idx1]+image2.imageData[idx2])/2;
+          int blendedG = (image1.imageData[idx1+1]+image2.imageData[idx2+1])/2;
+          int blendedB = (image1.imageData[idx1+2]+image2.imageData[idx2+2])/2;
+
+          result.imageData[outidx] = blendedR;
+          result.imageData[outidx+1] = blendedG;
+          result.imageData[outidx+2] = blendedB;
+
+        }
+      }
+
+      return result;
+    }
+
     
 
 
@@ -355,9 +391,10 @@ class Image_processor {
 
 int main() {
   Image image("House.bmp");
+  Image image2("sun.bmp");
   Image_processor processor;
 
-  processor.generate_filter(Filters::SUNNY).apply_to_image(image);
+  processor.generate_filter(Filters::MERGE).apply_to_image(image);
 
   image.saveImage("sun.bmp");
 
