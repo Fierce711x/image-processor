@@ -39,6 +39,7 @@ enum class Filters{
   ROTATE,
   SUNNY,
   MERGE,
+  BLUR,
 };
 
 enum class Deg {
@@ -174,10 +175,10 @@ class Image_processor {
       }
     }
 
-    static int get_brightness(Image& image, int pixleIndex) {
-      int r = image.imageData[pixleIndex];
-      int g = image.imageData[pixleIndex+1];
-      int b = image.imageData[pixleIndex+2];
+    static int get_brightness(Image& image, int pixle_index) {
+      int r = image.imageData[pixle_index];
+      int g = image.imageData[pixle_index+1];
+      int b = image.imageData[pixle_index+2];
       return r*0.2126 + g*0.7152 + b*0.0722;
     }
 
@@ -252,57 +253,57 @@ class Image_processor {
 
     static void rotate(Image& image, Deg deg) {
       if (deg == Deg::DEG90) {
-        Image new_image(image.height, image.width);
-        int row_length = new_image.width * new_image.channels;
+        Image rotated_image(image.height, image.width);
         for (int i = 0; i < image.width * image.height; i++) {
           int current_row = i / image.width;
           int pixle_in_row = i % image.width;
-          new_image.imageData[(new_image.width * (pixle_in_row + 1) - 1 - current_row) * image.channels] = image.imageData[i*3];
-          new_image.imageData[(new_image.width * (pixle_in_row + 1) - 1 - current_row) * image.channels + 1] = image.imageData[i*3+1];
-          new_image.imageData[(new_image.width * (pixle_in_row + 1) - 1 - current_row) * image.channels + 2] = image.imageData[i*3+2];
+          int rotated_pixle_index = (rotated_image.width * (pixle_in_row + 1) - 1 - current_row) * image.channels;
+          rotated_image.imageData[rotated_pixle_index] = image.imageData[i*3];
+          rotated_image.imageData[rotated_pixle_index + 1] = image.imageData[i*3+1];
+          rotated_image.imageData[rotated_pixle_index + 2] = image.imageData[i*3+2];
         }
-        image = new_image;
+        image = rotated_image;
       } else if (deg == Deg::DEG270) {
-        Image new_image(image.height, image.width);
-        int row_length = new_image.width * new_image.channels;
+        Image rotated_image(image.height, image.width);
         for (int i = 0; i < image.width * image.height; i++) {
           int current_row = i / image.width;
           int pixle_in_row = i % image.width;
-          new_image.imageData[(new_image.width * (new_image.height - (pixle_in_row + 1)) + current_row) * image.channels] = image.imageData[i*3];
-          new_image.imageData[(new_image.width * (new_image.height - (pixle_in_row + 1)) + current_row) * image.channels + 1] = image.imageData[i*3+1];
-          new_image.imageData[(new_image.width * (new_image.height - (pixle_in_row + 1)) + current_row) * image.channels + 2] = image.imageData[i*3+2];
+          int rotated_pixle_index = (rotated_image.width * (rotated_image.height - (pixle_in_row + 1)) + current_row) * image.channels;
+          rotated_image.imageData[rotated_pixle_index] = image.imageData[i*3];
+          rotated_image.imageData[rotated_pixle_index + 1] = image.imageData[i*3+1];
+          rotated_image.imageData[rotated_pixle_index + 2] = image.imageData[i*3+2];
         }
-        image = new_image;
+        image = rotated_image;
       } else if (deg == Deg::DEG180) {
-        Image new_image(image.width, image.height);
-        int row_length = new_image.width * new_image.channels;
+        Image rotated_image(image.width, image.height);
         for (int i = 0; i < image.width * image.height; i++) {
-          new_image.imageData[(new_image.width * new_image.height - (1 + i)) * image.channels] = image.imageData[i*3];
-          new_image.imageData[(new_image.width * new_image.height - (1 + i)) * image.channels + 1] = image.imageData[i*3+1];
-          new_image.imageData[(new_image.width * new_image.height - (1 + i)) * image.channels + 2] = image.imageData[i*3+2];
+          int rotated_pixle_index = (rotated_image.width * rotated_image.height - (1 + i)) * image.channels;
+          rotated_image.imageData[rotated_pixle_index] = image.imageData[i*3];
+          rotated_image.imageData[rotated_pixle_index + 1] = image.imageData[i*3+1];
+          rotated_image.imageData[rotated_pixle_index + 2] = image.imageData[i*3+2];
         }
-        image = new_image;
+        image = rotated_image;
       } else {
         throw std::invalid_argument("Unknown rotation degree provided.");
       }
     }
 
 
-    static Image merge(const Image& image1, const Image& image2){
+    static Image merge(Image& image1, Image& image2){
       Image result;
       if(image1.width==image2.width && image1.height==image2.height){
-         result.width= image1.width;
-         result.height= image1.height;
+        result.width = image1.width;
+        result.height = image1.height;
       }
       else{
         int width = std::min(image1.width,image2.width);
         int height = std::min(image1.height,image2.height);
-        result.width=width;
-        result.height=height;
+        result.width = width;
+        result.height = height;
       }
 
-      for(int y=0;y<result.height;y++){
-        for(int x=0;x<result.width;x++){
+      for(int y=0;y<result.height;y++) {
+        for(int x=0;x<result.width;x++) {
 
           int idx1 = (y*image1.width+x)*image1.channels;
           int idx2 = (y*image2.width+x)*image2.channels;
@@ -322,10 +323,7 @@ class Image_processor {
       return result;
     }
 
-    
-
-
-     static void sunnyEffect(const Image& image){
+    static void sunny_effect(Image& image){
       for(int i=0;i<(image.channels*image.height*image.width);i+=image.channels){
         float r = image.imageData[i];
         float g = image.imageData[i+1];
@@ -335,6 +333,94 @@ class Image_processor {
         image.imageData[i+1] = (unsigned char)(std::clamp(g*1.05f,0.0f,255.0f));
         image.imageData[i+2] = (unsigned char)(std::clamp(b*0.85f,0.0f,255.0f));
       }
+    }
+
+    static void blur_vertical(Image& image, int radius) {
+      Image output_image(image.width, image.height);
+      int window_size = radius * 2 + 1;
+      for (int i = 0; i < image.width * image.height; i++) {
+        int current_row = i / image.width;
+        int pixle_in_row = i % image.width;
+        int current_pixle_index = (current_row * image.width + pixle_in_row) * image.channels;
+        if (current_row < radius || current_row >= image.height - radius) {
+          for (int channel = 0; channel < image.channels; channel++) {
+            output_image.imageData[current_pixle_index + channel] = image.imageData[current_pixle_index + channel];
+          }
+        } else {
+          for (int channel = 0; channel < image.channels; channel++) {
+            int channel_blur_value = 0;
+              for (int ky = -radius; ky <= radius; ky++) {
+                int neighbor_index = ((current_row + ky) * image.width + pixle_in_row) * image.channels;
+                channel_blur_value += image.imageData[neighbor_index + channel];
+              }
+            output_image.imageData[current_pixle_index + channel] = channel_blur_value / window_size;
+          }
+        }
+      }
+      image = output_image;
+    }
+    static void blur_horizontal(Image& image, int radius) {
+      Image output_image(image.width, image.height);
+      int window_size = radius * 2 + 1;
+      for (int i = 0; i < image.width * image.height; i++) {
+        int current_row = i / image.width;
+        int pixle_in_row = i % image.width;
+        int current_pixle_index = (current_row * image.width + pixle_in_row) * image.channels;
+        if (pixle_in_row < radius || pixle_in_row >= image.width - radius) {
+          for (int channel = 0; channel < image.channels; channel++) {
+            output_image.imageData[current_pixle_index + channel] = image.imageData[current_pixle_index + channel];
+          }
+        } else {
+          for (int channel = 0; channel < image.channels; channel++) {
+            int channel_blur_value = 0;
+            for (int kx = -radius; kx <= radius; kx++) {
+              int neighbor_index = (current_row * image.width + pixle_in_row + kx) * image.channels;
+              channel_blur_value += image.imageData[neighbor_index + channel];
+            }
+            output_image.imageData[current_pixle_index + channel] = channel_blur_value / window_size;
+          }
+        }
+      }
+      image = output_image;
+    }
+
+    static void blur(Image& image, int x_radius, int y_radius) {
+      blur_horizontal(image, x_radius);
+      blur_vertical(image, y_radius);
+    }
+
+    static void soft_blur(Image& image) {
+      Image output_image(image.width, image.height);
+      int kernel[3][3] = {
+        {1, 2, 1},
+        {2, 4, 2},
+        {1, 2, 1},
+      };
+
+      for (int i = 0; i < image.width * image.height; i++) {
+        int current_row = i / image.width;
+        int pixle_in_row = i % image.width;
+        int current_pixle_index = (current_row * image.width + pixle_in_row) * image.channels;
+        if (current_row < 1 || current_row >= image.height - 1 || pixle_in_row < 1 || pixle_in_row >= image.width - 1) {
+          for (int channel = 0; channel < image.channels; channel++) {
+            output_image.imageData[current_pixle_index + channel] = image.imageData[current_pixle_index + channel];
+          }
+        } else {
+          for (int channel = 0; channel < image.channels; channel++) {
+            int channel_blur_value = 0;
+            for (int ky = -1; ky <= 1; ky++) {
+              for (int kx = -1; kx <= 1; kx++) {
+                int neighbor_index = ((current_row + ky) * image.width + pixle_in_row + kx) * image.channels;
+                int kernel_value = kernel[ky + 1][kx + 1];
+                int channle_value = image.imageData[neighbor_index + channel];
+                channel_blur_value += kernel_value * channle_value;
+              }
+            }
+            output_image.imageData[current_pixle_index + channel] = channel_blur_value / 16;
+          }
+        }
+      }
+      image = output_image;
     }
 
   public: 
@@ -357,7 +443,7 @@ class Image_processor {
         case Filters::TV:
           return Filter(television);
         case Filters::SUNNY:
-          return Filter(sunnyEffect);
+          return Filter(sunny_effect);
         case Filters::LIGHT:
         case Filters::DARK:
         case Filters::ROTATE:
@@ -379,9 +465,16 @@ class Image_processor {
 
     Filter generate_filter(Filters filter_type, Deg rotation_degree) {
       if (filter_type == Filters::ROTATE) {
-          return Filter(Image_processor::rotate, rotation_degree);
+          return Filter(rotate, rotation_degree);
       }
       throw std::invalid_argument("Error: This filter does not accept a rotation parameter.");
+    }
+
+    Filter generate_filter(Filters filter_type, int x_radius, int y_radius) {
+      if (filter_type == Filters::BLUR) {
+        return Filter(blur, x_radius, y_radius);
+      }
+      throw std::invalid_argument("Error: This filter does not accept radius parameters.");
     }
 
     static const Filterable_image create_filterable_image(const Image &image) {
@@ -390,13 +483,13 @@ class Image_processor {
 };
 
 int main() {
-  Image image("House.bmp");
-  Image image2("sun.bmp");
+  Image image("building.jpg");
+  // Image image2("sun.bmp");
   Image_processor processor;
 
-  processor.generate_filter(Filters::MERGE).apply_to_image(image);
+  processor.generate_filter(Filters::BLUR, 20, 20).apply_to_image(image);
 
-  image.saveImage("sun.bmp");
+  image.saveImage("blur.jpg");
 
   // this is the first way of applying filters:
   // - it generates a single filter at a time and then apply it to an image;
