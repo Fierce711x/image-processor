@@ -2,6 +2,7 @@
 #include <functional>
 #include <stdexcept> 
 #include <vector>
+#include<algorithm>
 
 // ignore this class, this is for gui.
 
@@ -36,6 +37,7 @@ enum class Filters{
   LIGHT,
   DARK,
   ROTATE,
+  SUNNY,
 };
 
 enum class Deg {
@@ -284,6 +286,21 @@ class Image_processor {
       }
     }
 
+    
+
+
+     static void sunnyEffect(const Image& image){
+      for(int i=0;i<(image.channels*image.height*image.width);i+=image.channels){
+        float r = image.imageData[i];
+        float g = image.imageData[i+1];
+        float b = image.imageData[i+2];
+
+        image.imageData[i] = (unsigned char)(std::clamp(r*1.15f,0.0f,255.0f));
+        image.imageData[i+1] = (unsigned char)(std::clamp(g*1.05f,0.0f,255.0f));
+        image.imageData[i+2] = (unsigned char)(std::clamp(b*0.85f,0.0f,255.0f));
+      }
+    }
+
   public: 
     Filter generate_filter(Filters filter_type) {
       switch (filter_type) {
@@ -303,6 +320,8 @@ class Image_processor {
           return Filter(infrared);
         case Filters::TV:
           return Filter(television);
+        case Filters::SUNNY:
+          return Filter(sunnyEffect);
         case Filters::LIGHT:
         case Filters::DARK:
         case Filters::ROTATE:
@@ -335,8 +354,12 @@ class Image_processor {
 };
 
 int main() {
-  Image image("luffy.jpg");
+  Image image("House.bmp");
   Image_processor processor;
+
+  processor.generate_filter(Filters::SUNNY).apply_to_image(image);
+
+  image.saveImage("sun.bmp");
 
   // this is the first way of applying filters:
   // - it generates a single filter at a time and then apply it to an image;
