@@ -40,6 +40,7 @@ enum class Filters{
   SUNNY,
   MERGE,
   BLUR,
+  EDGE_DETECTION,
 };
 
 enum class Deg {
@@ -442,6 +443,54 @@ class Image_processor {
       image = output_image;
     }
 
+    static void edge_detection(Image& image) {
+      blur(image, 2, 2);
+      // soft_blur(image);
+      gray_scale(image);
+      // black_and_white(image);
+      Image output_image(image.width, image.height);
+      int Gy[3][3] = {
+        {-1, -2, -1},
+        {0, 0, 0},
+        {1, 2, 1},
+      };
+
+      int Gx[3][3] = {
+        {-1, 0, 1},
+        {-2, 0, 2},
+        {-1, 0, 1},
+      };
+
+      for (int i = 0; i < image.width * image.height; i++) {
+        int current_row = i / image.width;
+        int pixle_in_row = i % image.width;
+        int current_pixle_index = (current_row * image.width + pixle_in_row) * image.channels;
+        if (current_row < 1 || current_row >= image.height - 1 || pixle_in_row < 1 || pixle_in_row >= image.width - 1) {
+          for (int channel = 0; channel < image.channels; channel++) {
+            output_image.imageData[current_pixle_index + channel] = image.imageData[current_pixle_index + channel];
+          }
+        } else {
+          int accumelated_gx = 0;
+          int accumelated_gy = 0;
+          for (int ky = -1; ky <= 1; ky++) {
+            for (int kx = -1; kx <= 1; kx++) {
+              int neighbor_index = ((current_row + ky) * image.width + pixle_in_row + kx) * image.channels;
+              int gx_value = Gx[ky + 1][kx + 1];
+              int gy_value = Gy[ky + 1][kx + 1];
+              int gray_value = get_brightness(image, neighbor_index);
+              accumelated_gx += gx_value * gray_value;
+              accumelated_gy += gy_value * gray_value;
+            }
+          }
+          int total_edge_strength = std::abs(accumelated_gx) + std::abs(accumelated_gy);
+          for (int channel = 0; channel < image.channels; channel++) {
+            output_image.imageData[current_pixle_index + channel] = std::clamp(255 - total_edge_strength, 0, 255);
+          }
+        }
+      }
+      image = output_image;
+    }
+
   public: 
     Filter generate_filter(Filters filter_type) {
       switch (filter_type) {
@@ -463,6 +512,8 @@ class Image_processor {
           return Filter(television);
         case Filters::SUNNY:
           return Filter(sunny_effect);
+        case Filters::EDGE_DETECTION:
+          return Filter(edge_detection);
         case Filters::LIGHT:
         case Filters::DARK:
         case Filters::ROTATE:
@@ -506,9 +557,9 @@ int main() {
   // Image image2("sun.bmp");
   Image_processor processor;
 
-  processor.generate_filter(Filters::BLUR, 20, 20).apply_to_image(image);
+  processor.generate_filter(Filters::EDGE_DETECTION).apply_to_image(image);
 
-  image.saveImage("blur.jpg");
+  image.saveImage("edge-detection.jpg");
 
   // this is the first way of applying filters:
   // - it generates a single filter at a time and then apply it to an image;
