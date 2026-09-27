@@ -288,18 +288,37 @@ class Image_processor {
       }
     }
 
+    // i tried my best for resize filter and merge they are very complicated
+    static Image resize(Image& image,int new_width,int new_height){
+      Image result;
+      result.height=new_height;
+      result.width=new_width;
+      result.channels = image.channels;
+
+      float scaleX= (float)(image.width)/new_width;
+      float scaleY= (float)(image.height)/new_height;
+
+      for(int y=0;y<result.height;y++){
+          int copiedY = (int)(scaleY*y);
+        for(int x=0;x<result.width;x++){
+          int copiedX = (int)(scaleX*x);
+          int srcIdx = (copiedY*image.width+copiedX)*image.channels;
+          int outIdx = (y*result.width+x)*result.channels;
+          for(int c=0;c<result.channels;c++){
+            result.imageData[outIdx+c] = image.imageData[srcIdx+c];
+          }
+        }
+      }
+
+
+    }
+
 
     static Image merge(Image& image1, Image& image2){
       Image result;
       if(image1.width==image2.width && image1.height==image2.height){
         result.width = image1.width;
         result.height = image1.height;
-      }
-      else{
-        int width = std::min(image1.width,image2.width);
-        int height = std::min(image1.height,image2.height);
-        result.width = width;
-        result.height = height;
       }
 
       for(int y=0;y<result.height;y++) {
