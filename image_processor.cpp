@@ -3,6 +3,7 @@
 #include <stdexcept> 
 #include <vector>
 #include<algorithm>
+#include <type_traits>
 
 // ignore this class, this is for gui.
 
@@ -48,15 +49,37 @@ enum class Deg {
   DEG180,
   DEG270,
 };
-
+template<typename F>
+concept standard_filter_type = requires(F filter, Image& image) { filter(image);};
+template<typename F>
+concept brightness_filter_type = requires(F filter, Image& image, uint8_t brightness_level) { filter(image, brightness_level);};
+template<typename F>
+concept rotate_filter_type = requires(F filter, Image& image, Deg deg) { filter(image, deg);};
+template<typename F>
+concept blur_filter_type = requires(F filter, Image& image, int x_radius, int y_radius) { filter(image, x_radius, y_radius);};
 class Filter {
   private: 
     std::function<void(Image&)> filter;
 
   public: 
-    template<typename Func, typename... Args>
-    Filter(const Func& filter, Args... args): filter([filter, args...](Image& image) {
-      filter(image, args...);
+    template<standard_filter_type F>
+    Filter(const F& filter): filter([filter] (Image& image) {
+      filter(image);
+    }) {}
+
+    template<brightness_filter_type F>
+    Filter(const F& filter, uint8_t brightness_level): filter([filter, brightness_level](Image& image) {
+      filter(image, brightness_level);
+    }) {}
+
+    template<rotate_filter_type F>
+    Filter(const F& filter, Deg deg): filter([filter, deg] (Image& image) {
+      filter(image, deg);
+    }) {}
+
+    template<blur_filter_type F>
+    Filter(const F& filter, int x_radius, int y_radius): filter([filter, x_radius, y_radius] (Image& image) {
+      filter(image, x_radius, y_radius);
     }) {}
 
     void apply_to_image(Image& image) const {
@@ -535,7 +558,7 @@ class Image_processor {
 
     Filter generate_filter(Filters filter_type, Deg rotation_degree) {
       if (filter_type == Filters::ROTATE) {
-          return Filter(rotate, rotation_degree);
+        return Filter(rotate, rotation_degree);
       }
       throw std::invalid_argument("Error: This filter does not accept a rotation parameter.");
     }
@@ -557,9 +580,9 @@ int main() {
   // Image image2("sun.bmp");
   Image_processor processor;
 
-  processor.generate_filter(Filters::EDGE_DETECTION).apply_to_image(image);
+  processor.generate_filter(Filters::BLUR).apply_to_image(image);
 
-  image.saveImage("edge-detection.jpg");
+  image.saveImage("blur.jpg");
 
   // this is the first way of applying filters:
   // - it generates a single filter at a time and then apply it to an image;
