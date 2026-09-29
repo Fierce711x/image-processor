@@ -40,6 +40,7 @@ enum class Filters{
   ROTATE,
   SUNNY,
   MERGE,
+  RESIZE,
   BLUR,
   EDGE_DETECTION,
   CROPING,
@@ -155,7 +156,6 @@ class Image_processor {
 
 
 
-    //Ahmed Shiref 20250033
 
     static void light(Image& image, uint8_t brightness_level) {
       float multiplier = brightness_level/255.0f + 1;
@@ -169,7 +169,6 @@ class Image_processor {
         image.imageData[i+2] = static_cast<uint8_t>(std::clamp(b,0,255));
       }
     }
-    //Ahmed Shiref 20250033
 
     static void dark(Image& image, uint8_t brightness_level) {
       float multiplier = 1 - brightness_level/255.0f;
@@ -183,8 +182,9 @@ class Image_processor {
         image.imageData[i+2] = static_cast<uint8_t>(std::clamp(b,0,255));
       }
     }
-    // Ahmed Shiref 20250033
 
+
+    // Ahmed Shiref 20250033
     static void flip_horizontal(Image& image) {
       int channels = image.channels;
       int row_length = image.width * channels;
@@ -232,6 +232,7 @@ class Image_processor {
       return r*0.2126 + g*0.7152 + b*0.0722;
     }
 
+    //Ahmed Shiref Farouk 20250033
     static void gray_scale(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
         int gray_value = get_brightness(image, i);
@@ -338,20 +339,17 @@ class Image_processor {
       }
     }
 
-    // i tried my best for resize filter and merge they are very complicated
-    static Image resize(Image& image,int new_width,int new_height){
-      Image result;
-      result.height=new_height;
-      result.width=new_width;
-      result.channels = image.channels;
+    static void resize(Image& image,int new_width,int new_height){
+      
+      Image result(new_width,new_height);
 
-      float scaleX= (float)(image.width)/new_width;
-      float scaleY= (float)(image.height)/new_height;
+      float scaleX= static_cast<float>(image.width)/new_width;
+      float scaleY= static_cast<float>(image.height)/new_height;
 
       for(int y=0;y<result.height;y++){
-          int copiedY = (int)(scaleY*y);
+          int copiedY = std::min(static_cast<int>(scaleY*y),image.height-1);
         for(int x=0;x<result.width;x++){
-          int copiedX = (int)(scaleX*x);
+          int copiedX = std::min(static_cast<int>(scaleX*x),image.width-1);
           int srcIdx = (copiedY*image.width+copiedX)*image.channels;
           int outIdx = (y*result.width+x)*result.channels;
           for(int c=0;c<result.channels;c++){
@@ -360,38 +358,43 @@ class Image_processor {
         }
       }
 
-
+      image = result;
     }
 
-
+    // Ahmed Shiref Farouk 20250033
     static Image merge(Image& image1, Image& image2){
-      Image result;
-      if(image1.width==image2.width && image1.height==image2.height){
-        result.width = image1.width;
-        result.height = image1.height;
+      if(image1.height>image2.height || image1.width>image2.width){
+        resize(image1,image2.width,image2.height);
+      }
+      
+      if(image1.height<image2.height || image1.width<image2.width){
+        resize(image2,image1.width,image1.height);
       }
 
-      for(int y=0;y<result.height;y++) {
-        for(int x=0;x<result.width;x++) {
+      Image result_img(image1.width,image1.height);
+
+      for(int y=0;y<result_img.height;y++) {
+        for(int x=0;x<result_img.width;x++) {
 
           int idx1 = (y*image1.width+x)*image1.channels;
           int idx2 = (y*image2.width+x)*image2.channels;
-          int outidx = (y*result.width+x)*result.channels;
+          int outidx = (y*result_img.width+x)*result_img.channels;
 
           int blendedR = (image1.imageData[idx1]+image2.imageData[idx2])/2;
           int blendedG = (image1.imageData[idx1+1]+image2.imageData[idx2+1])/2;
           int blendedB = (image1.imageData[idx1+2]+image2.imageData[idx2+2])/2;
 
-          result.imageData[outidx] = blendedR;
-          result.imageData[outidx+1] = blendedG;
-          result.imageData[outidx+2] = blendedB;
+          result_img.imageData[outidx] = blendedR;
+          result_img.imageData[outidx+1] = blendedG;
+          result_img.imageData[outidx+2] = blendedB;
 
         }
       }
 
-      return result;
+      return result_img;
     }
 
+    // Ahmed Shiref Farouk 20250033
     static void sunny_effect(Image& image){
       for(int i=0;i<(image.channels*image.height*image.width);i+=image.channels){
         float r = image.imageData[i];
@@ -604,12 +607,12 @@ class Image_processor {
 
 int main() {
   Image image("building.jpg");
-  // Image image2("sun.bmp");
+   //Image image2("sun.bmp");
   Image_processor processor;
 
-  processor.generate_filter(Filters::BLUR).apply_to_image(image);
+  processor.generate_filter(Filters::MERGE).apply_to_image(image);
 
-  image.saveImage("blur.jpg");
+  image.saveImage("size.jpg");
 
   // this is the first way of applying filters:
   // - it generates a single filter at a time and then apply it to an image;
