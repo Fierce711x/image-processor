@@ -42,6 +42,7 @@ enum class Filters{
   MERGE,
   BLUR,
   EDGE_DETECTION,
+  CROPING,
 };
 
 enum class Deg {
@@ -129,6 +130,31 @@ class Image_processor {
         image.imageData[i] = ~image.imageData[i];
       }
     }
+    
+
+     // hazem tariq 20250176
+    
+   static Image croping(Image& image, int x, int y, int w, int h){
+    Image cropped(w, h);
+      for (int i = 0; i < w; i++){
+        for (int j = 0; j < h; j++){
+          for (int k = 0; k < 3; k++){
+            cropped(i,j,k) = image(i+x,j+y,k);
+         };
+        
+      };
+    };
+    return cropped;
+
+  }
+
+
+
+
+
+
+
+
     //Ahmed Shiref 20250033
 
     static void light(Image& image, uint8_t brightness_level) {
@@ -540,6 +566,7 @@ class Image_processor {
         case Filters::LIGHT:
         case Filters::DARK:
         case Filters::ROTATE:
+        case Filters::CROPING:
           throw std::invalid_argument("Error: This filter requires configuration arguments.");
         default:
           throw std::invalid_argument("Unknown filter type provided.");
