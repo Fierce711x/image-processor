@@ -2,9 +2,10 @@
 #include <functional>
 #include <stdexcept> 
 #include <vector>
-#include<algorithm>
+#include <algorithm>
 #include <type_traits>
-
+#include <fstream>
+#include <filesystem>
 // ignore this class, this is for gui.
 
 // class my_image {
@@ -25,6 +26,18 @@
 // };
 
 // Append new filter types here using UPPER_CASE naming conventions. Access via Filters::ENUM_NAME.
+
+namespace UI {
+  // Basic terminal formatting commands
+  inline std::ostream& error(std::ostream& os)   { return os << "\033[1;31m"; }
+  inline std::ostream& clear(std::ostream& os)   { return os << "\033[H\033[J"; }
+  inline std::ostream& reset(std::ostream& os)   { return os << "\033[0m"; }
+  inline std::ostream& bold(std::ostream& os)    { return os << "\033[1m"; }
+  inline std::ostream& cyan(std::ostream& os)    { return os << "\033[1;36m"; }
+  inline std::ostream& green(std::ostream& os)   { return os << "\033[1;32m"; }
+  inline std::ostream& yellow(std::ostream& os)  { return os << "\033[1;33m"; }
+  inline std::ostream& gray(std::ostream& os)    { return os << "\033[90m"; }
+}
 
 enum class Filters{
   INVERT,
@@ -90,12 +103,14 @@ class Filter {
 };
 
 class Filterable_image {
-  private :
+  private:
     Image image;
+    std::string filename = "";
     std::vector<Filter> queued_filters;
 
-  public :
-    Filterable_image(const Image& image): image(image) {}
+  public:
+    Filterable_image() = default;
+    Filterable_image(std::string filename): image(filename), filename(filename) {}
 
     Image& apply_filters(std::vector<Filter> &filters) {
       for (const auto& f : filters) {
@@ -112,11 +127,14 @@ class Filterable_image {
       return image;
     }
 
-    Filterable_image& add_filter(Filter& filter) {
+    Filterable_image& add_filter(Filter filter) {
       queued_filters.push_back(filter);
       return *this;
     }
 
+    std::string get_filename() const {
+      return filename;
+    }
     // I could make use of this later
     // Filterable_Image& remove_filter() {
     //   queued_filters.pop_back();
@@ -135,13 +153,13 @@ class Image_processor {
 
      // hazem tariq 20250176
     
-   static Image croping(Image& image, int x, int y, int w, int h){
+  static Image croping(Image& image, int x, int y, int w, int h){
     Image cropped(w, h);
       for (int i = 0; i < w; i++){
         for (int j = 0; j < h; j++){
           for (int k = 0; k < 3; k++){
             cropped(i,j,k) = image(i+x,j+y,k);
-         };
+        };
         
       };
     };
@@ -600,19 +618,164 @@ class Image_processor {
       throw std::invalid_argument("Error: This filter does not accept radius parameters.");
     }
 
-    static const Filterable_image create_filterable_image(const Image &image) {
-      return Filterable_image(image);
+    static const Filterable_image create_filterable_image(std::string filename) {
+      return Filterable_image(filename);
     }
 };
 
+
+bool filename_exists(const std::string& user_input) {
+  std::filesystem::path filepath(user_input);
+  return std::filesystem::exists(filepath) && !filepath.has_parent_path();
+}
+
+bool is_valid_option_choice(int choice) {
+  return choice < 1 || choice > 4 ? false : true;
+}
+
+bool is_valid_filter_choice(int choice) {
+  return choice < 1 || choice > 5 ? false : true;
+}
+
+void display_option_menu(bool error, std::string message = "") {
+  std::cout << UI::clear;
+
+  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n";
+  std::cout << UI::cyan << UI::bold << "         IMAGE FILTER APP        " << UI::reset << "\n";
+  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n\n";
+
+  if (message != "" && !error) std::cout << UI::green << message << UI::reset << "\n\n";
+  error && std::cout << UI::error << "Previous Option Was Invalid" << UI::reset << "\n\n";
+
+  std::cout << UI::bold << "Please select an option:\n" << UI::reset;
+  std::cout << UI::green << "1." << UI::reset << " Load new image\n";
+  std::cout << UI::green << "2." << UI::reset << " Apply filter\n";
+  std::cout << UI::green << "3." << UI::reset << " Save results to disk\n";
+  std::cout << UI::yellow << "4." << UI::reset << " Exit program\n\n";
+  
+  std::cout << UI::bold << "Enter choice number: " << UI::reset;
+}
+
+void display_load_image_menu(bool error) {
+  std::cout << UI::clear;
+
+  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n";
+  std::cout << UI::cyan << UI::bold << "         LOAD NEW IMAGE          " << UI::reset << "\n";
+  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n\n";
+
+  error && std::cout << UI::error << "No Image With That Filename Exists In Current Directory" << UI::reset << "\n\n";
+
+  std::cout << UI::bold << "Enter the image filename only and make sure its in the current directory\n" << UI::reset;
+  std::cout << "Examples: " << UI::green << "image.ppm" << UI::reset << ", " << UI::green << "data/photo.pgm" << UI::reset << "\n\n";
+
+  std::cout << UI::bold << "Path: " << UI::reset;
+}
+
+void display_filter_choice_menu(bool error, const Filterable_image& active_image, const std::string message = "") { 
+  std::cout << UI::clear;
+
+  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n";
+  std::cout << UI::cyan << UI::bold << "        APPLY IMAGE FILTER       " << UI::reset << "\n";
+  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n";
+  std::cout << "Active Image: " << UI::green << active_image.get_filename() << UI::reset << "\n\n";
+
+  if (message != "" && !error) std::cout << UI::green << message << UI::reset << "\n\n";
+  error && std::cout << UI::error << "Previous Option Was Invalid" << UI::reset << "\n\n";
+
+  std::cout << UI::bold << "Select a filter to apply:\n" << UI::reset;
+  std::cout << UI::green << "1." << UI::reset << " Convert to Grayscale\n";
+  std::cout << UI::green << "2." << UI::reset << " Invert Colors (Negative)\n";
+  std::cout << UI::green << "3." << UI::reset << " Apply Gaussian Blur\n";
+  std::cout << UI::green << "4." << UI::reset << " Sharpen Image\n";
+  std::cout << UI::yellow << "5." << UI::reset << " Cancel (Back to Main Menu)\n\n";
+
+  std::cout << UI::bold << "Enter filter choice: " << UI::reset;
+}
+
+void display_save_result_menu() {
+
+}
+
+std::string get_image_filename () {
+  std::string filename;
+  std::cin >> filename;
+
+  while (!filename_exists(filename)) {
+    display_load_image_menu(true);
+    std::cin >> filename;
+
+  }
+  return filename;
+}
+
+int get_selected_choice() {
+  int choice = 0;
+  std::cin >> choice;
+
+  while (!is_valid_option_choice(choice)) {
+    display_option_menu(true);
+    std::cin >> choice;
+  }
+
+  return choice;
+}
+
+int get_selected_filter_choice(const Filterable_image& active_image) {
+  int filter_choice = 0;
+  std::cin >> filter_choice;
+
+  while (!is_valid_filter_choice(filter_choice)) {
+    display_filter_choice_menu(true, active_image);
+    std::cin >> filter_choice;
+  }
+  
+  return filter_choice;
+}
+
+void run_application_loop() {
+  Image current_image;
+  Filterable_image active_image;
+  int choice = 0;
+  int filter_choice;
+  std::string message;
+  std::string filename;
+  bool stop_app = false;
+  while (!stop_app) {
+    switch (choice) {
+      case 0:
+        display_option_menu(false, message);
+        choice = get_selected_choice();
+        message = "";
+        continue;
+      case 1:
+        display_load_image_menu(false);
+        filename = get_image_filename();
+        current_image = Image(filename);
+        active_image = Filterable_image(filename);
+        message = "Image Loaded Successfully";
+        break;
+      case 2:
+        display_filter_choice_menu(false, active_image, message);
+        filter_choice = get_selected_filter_choice(active_image);
+        if (filter_choice == 5) {
+          choice = 0;
+        } else {
+          message = "Filter Applied Successfully";
+        }
+        continue;
+      case 3:
+        display_save_result_menu();
+        message = "Image Saved Successfully";
+        break;
+      case 4:
+        stop_app = true;
+    }
+    choice = 0;
+  }
+}
+
 int main() {
-  Image image("building.jpg");
-   //Image image2("sun.bmp");
-  Image_processor processor;
-
-  processor.generate_filter(Filters::MERGE).apply_to_image(image);
-
-  image.saveImage("size.jpg");
+  run_application_loop();
 
   // this is the first way of applying filters:
   // - it generates a single filter at a time and then apply it to an image;
@@ -633,5 +796,5 @@ int main() {
   // --> img.apply_filters(filters).saveImage("gray-rotate90deg.jpg");
   // or
   // --> Filterable_image img = Image_processor::create_filterable_image(image);
-  // --> img.add_filter(processor.generate_filter(Filters::GRAY_SCALE)).add_filter(processor.generate_filter(Filters::ROTATE, Deg::DEG90)).apply_filter();
+  // --> img.add_filter(processor.generate_filter(Filters::GRAY_SCALE)).add_filter(processor.generate_filter(Filters::ROTATE, Deg::DEG90)).apply_filters();
 }
