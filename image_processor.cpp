@@ -1,3 +1,14 @@
+// file name: CS112_A3_Part2B_S15,16_20230211_20230100_20230246.cpp
+// description: the program has 17 filters, user choose one or more of them to apply in his photo.
+// Team info :
+// Ahmed Shiref Farouk Mohamed    ID: 20250033      S:15,16
+// Eyad Waleed Ibrahim Basit      ID: 20250101      S:15,16
+// Hazem Tariq Mohamed Hussain    ID: 20250176      S:15,16
+// Omar Ehab Maher Mohamed        ID: 20250425      S:15,16
+// Filters (Grayscale & Flip Image & Merge Images & Sunny)            made by Ahmed Shiref Farouk Mohamed
+// Filters (Black And White & Rotate Image & Edge Detection & TV)     made by Eyad Waleed Ibrahim Basit
+// Filters (invert IMage & Darken And Lighten & Crop Image & Purple)  made by Hazem Tariq Mohamed Hussain
+// Filters (invert IMage & Resize Image & Blur Image & Infrared)      made by Omar Ehab Maher Mohamed
 #include "Image_Class.h"
 #include <functional>
 #include <stdexcept> 
@@ -144,9 +155,6 @@ class Image_processor {
       }
     }
     
-
-     // hazem tariq 20250176
-    
   static void crop(Image& image, int x, int y, int w, int h){
     Image cropped_image(w, h);
       for (int i = 0; i < w; i++){
@@ -186,8 +194,6 @@ class Image_processor {
       }
     }
 
-
-    // Ahmed Shiref 20250033
     static void flip_horizontal(Image& image) {
       int channels = image.channels;
       int row_length = image.width * channels;
@@ -235,7 +241,6 @@ class Image_processor {
       return r*0.2126 + g*0.7152 + b*0.0722;
     }
 
-    //Ahmed Shiref Farouk 20250033
     static void gray_scale(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i+= image.channels) {
         int gray_value = get_brightness(image, i);
@@ -364,7 +369,6 @@ class Image_processor {
       image = result;
     }
 
-    // Ahmed Shiref Farouk 20250033
     static void merge(Image& image1, Image& image2){
       if(image1.height>image2.height || image1.width>image2.width){
         resize(image1,image2.width,image2.height);
@@ -397,7 +401,6 @@ class Image_processor {
       image1 = result_img;
     }
 
-    // Ahmed Shiref Farouk 20250033
     static void sunny_effect(Image& image){
       for(int i=0;i<(image.channels*image.height*image.width);i+=image.channels){
         float r = image.imageData[i];
