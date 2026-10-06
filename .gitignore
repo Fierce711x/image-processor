@@ -1,9 +1,13 @@
 *Assignment*
 *Assignemnt*
 *.jpg
-*.h
+Image_Class.h
+stb_image_write.h
+stb_image.h
 *.exe
 *.bmp
 *.png
 *.jpeg
 my-image_processor.cpp
+CS*
+/**/node_modules

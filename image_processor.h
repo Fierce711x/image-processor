@@ -1134,7 +1134,3 @@ void run_application_loop() {
     choice = 0;
   }
 }
-
-int main() {
-  run_application_loop();
-}
