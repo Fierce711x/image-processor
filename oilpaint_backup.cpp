@@ -13,11 +13,15 @@
 #include <functional>
 #include <stdexcept> 
 #include <vector>
+<<<<<<< HEAD
 #include <algorithm>
 #include <type_traits>
 #include <fstream>
 #include <filesystem>
 
+=======
+#include<algorithm>
+>>>>>>> 9f7657f (Add crop filter)
 
 // ignore this class, this is for gui.
 
@@ -68,10 +72,12 @@ enum class Filters{
   MERGE,
   RESIZE,
   BLUR,
+<<<<<<< HEAD
   EDGE_DETECTION,
   CROP,
-  FRAME,
-  OIL,
+=======
+  CROPPING,
+>>>>>>> 9f7657f (Add crop filter)
 };
 
 enum class Deg {
@@ -80,6 +86,7 @@ enum class Deg {
   DEG270,
 };
 
+<<<<<<< HEAD
 template<typename F>
 concept standard_filter_type = requires(F filter, Image& image) { filter(image);};
 template<typename F>
@@ -92,29 +99,16 @@ template<typename F>
 concept crop_filter_type = requires(F filter, Image& image, int x, int y, int w, int h) { filter(image, x, y, w, h);};
 template<typename F>
 concept merge_filter_type = requires(F filter, Image& image, Image& image2) { filter(image, image2);};
+=======
+>>>>>>> 9f7657f (Add crop filter)
 class Filter {
   private: 
     std::function<void(Image&)> filter;
 
   public: 
-    template<standard_filter_type F>
-    Filter(const F& filter): filter([filter] (Image& image) {
-      filter(image);
-    }) {}
-
-    template<brightness_filter_type F>
-    Filter(const F& filter, uint8_t brightness_level): filter([filter, brightness_level](Image& image) {
-      filter(image, brightness_level);
-    }) {}
-
-    template<rotate_filter_type F>
-    Filter(const F& filter, Deg deg): filter([filter, deg] (Image& image) {
-      filter(image, deg);
-    }) {}
-
-    template<blur_filter_type F>
-    Filter(const F& filter, int x_radius, int y_radius): filter([filter, x_radius, y_radius] (Image& image) {
-      filter(image, x_radius, y_radius);
+    template<typename Func, typename... Args>
+    Filter(const Func& filter, Args... args): filter([filter, args...](Image& image) {
+      filter(image, args...);
     }) {}
     
     template<crop_filter_type F>
@@ -179,6 +173,7 @@ class Image_processor {
         image.imageData[i] = ~image.imageData[i];
       }
     }
+<<<<<<< HEAD
     
   static void crop(Image& image, int x, int y, int w, int h){
     Image cropped_image(w, h);
@@ -192,93 +187,22 @@ class Image_processor {
     };
     image = cropped_image;
   }
-  static Image oil(Image& image){
-
-     
-     Image result(image.width,image.height);
-     // i will try to comment every step because this filter is really confusing
-     // gather pixels in groups
-    // i will use vectors here
-     const int groups = 20;
-     int radius = 3; // the are where the effect will be applied on away from the pixel we stand on
-
-     for (int x = 0; x < image.width; x++){
-        for (int y = 0; y < image.height; y++){
-     // x and y are the pixels we are standing on
-             vector<int> bucket_count(groups, 0);  // we are grouping pixels in 20 groups in terms of brightness
-             vector<int> bucket_r(groups , 0);      
-             vector<int> bucket_g(groups , 0);
-             vector<int> bucket_b(groups , 0);
-
-
-               for (int dx = -radius; dx <= radius; dx++){
-                 for (int dy = -radius; dy <= radius; dy++){
-                  int nx = x + dx;
-                  int ny = y + dy;
-                 if (nx < 0 || ny < 0 || nx >= image.width || ny >= image.height) continue; // checking bounds, like the crop filter 
-        // nx, ny are the neighbour pixels
-                 int r = image(nx, ny, 0); // take a rgb value from each n pixel
-                 int g = image(nx, ny, 1);
-                 int b = image(nx, ny, 2);
-
-                 int intensity = (r + g + b) / 3;              // now getting an avg to group them
-                 int bucket_index = intensity * groups / 256;  // squeeze into 0 to 19
-
-                 bucket_count[bucket_index]++;
-                 bucket_r[bucket_index] += r;  //we group everything now
-                 bucket_g[bucket_index] += g;
-                 bucket_b[bucket_index] += b;
-      }
-    }
-    int winner = 0;
-    for (int b = 1; b < groups; b++){
-        if (bucket_count[b] > bucket_count[winner]){
-           winner = b;
-  }
-}
-  
-
-  result(x, y, 0) = bucket_r[winner] / bucket_count[winner];
-  result(x, y, 1) = bucket_g[winner] / bucket_count[winner];
-  result(x, y, 2) = bucket_b[winner] / bucket_count[winner];  
-
+=======
+    // hazem tariq 20250176
+    
+   static Image croping(Image& image, int x, int y, int w, int h){
+    Image cropped(w, h);
+      for (int i = 0; i < w; i++){
+        for (int j = 0; j < h; j++){
+          for (int k = 0; k < 3; k++){
+            cropped(i,j,k) = image(i+x,j+y,k);
+         };
+        
+      };
+    };
+    return cropped;
 
   }
-}
-
-
-  return result;
-
-
-}
-
-
-
-static Image frame(Image& image, int thickness){
-   
-  
-  int thickness;
-  
-  int w = image.width + 2 * thickness;  //because border is on both sides :)
-  int h = image.height + 2 * thickness;
-
-
-  Image framed(w ,h);
-
-  fill(framed.imageData, framed.imageData + w * h * framed.channels, 0);
-  for (int i = 0; i < image.width; i++){
-    for (int j = 0; j < image.height; j++){
-        for (int k = 0; k < 3; k++){
-          framed(i + thickness, j + thickness, k) = image(i,j,k);
-
-
-        }
-    }
-  }
-
-   return framed;
-
-}
 
 
 
@@ -286,6 +210,9 @@ static Image frame(Image& image, int thickness){
 
 
 
+
+    //Ahmed Shiref 20250033
+>>>>>>> 9f7657f (Add crop filter)
 
     static void light(Image& image, uint8_t brightness_level) {
       float multiplier = brightness_level/255.0f + 1;
@@ -620,54 +547,6 @@ static Image frame(Image& image, int thickness){
       image = output_image;
     }
 
-    static void edge_detection(Image& image) {
-      blur(image, 2, 2);
-      // soft_blur(image);
-      gray_scale(image);
-      // black_and_white(image);
-      Image output_image(image.width, image.height);
-      int Gy[3][3] = {
-        {-1, -2, -1},
-        {0, 0, 0},
-        {1, 2, 1},
-      };
-
-      int Gx[3][3] = {
-        {-1, 0, 1},
-        {-2, 0, 2},
-        {-1, 0, 1},
-      };
-
-      for (int i = 0; i < image.width * image.height; i++) {
-        int current_row = i / image.width;
-        int pixle_in_row = i % image.width;
-        int current_pixle_index = (current_row * image.width + pixle_in_row) * image.channels;
-        if (current_row < 1 || current_row >= image.height - 1 || pixle_in_row < 1 || pixle_in_row >= image.width - 1) {
-          for (int channel = 0; channel < image.channels; channel++) {
-            output_image.imageData[current_pixle_index + channel] = image.imageData[current_pixle_index + channel];
-          }
-        } else {
-          int accumelated_gx = 0;
-          int accumelated_gy = 0;
-          for (int ky = -1; ky <= 1; ky++) {
-            for (int kx = -1; kx <= 1; kx++) {
-              int neighbor_index = ((current_row + ky) * image.width + pixle_in_row + kx) * image.channels;
-              int gx_value = Gx[ky + 1][kx + 1];
-              int gy_value = Gy[ky + 1][kx + 1];
-              int gray_value = get_brightness(image, neighbor_index);
-              accumelated_gx += gx_value * gray_value;
-              accumelated_gy += gy_value * gray_value;
-            }
-          }
-          int total_edge_strength = std::abs(accumelated_gx) + std::abs(accumelated_gy);
-          for (int channel = 0; channel < image.channels; channel++) {
-            output_image.imageData[current_pixle_index + channel] = std::clamp(255 - total_edge_strength, 0, 255);
-          }
-        }
-      }
-      image = output_image;
-    }
-
   public: 
     Filter generate_filter(Filters filter_type) {
       switch (filter_type) {
@@ -689,12 +568,14 @@ static Image frame(Image& image, int thickness){
           return Filter(television);
         case Filters::SUNNY:
           return Filter(sunny_effect);
-        case Filters::EDGE_DETECTION:
-          return Filter(edge_detection);
         case Filters::LIGHT:
         case Filters::DARK:
         case Filters::ROTATE:
+<<<<<<< HEAD
         case Filters::CROP:
+=======
+        case Filters::CROPPING:
+>>>>>>> 9f7657f (Add crop filter)
           throw std::invalid_argument("Error: This filter requires configuration arguments.");
         default:
           throw std::invalid_argument("Unknown filter type provided.");
@@ -713,7 +594,7 @@ static Image frame(Image& image, int thickness){
 
     Filter generate_filter(Filters filter_type, Deg rotation_degree) {
       if (filter_type == Filters::ROTATE) {
-        return Filter(rotate, rotation_degree);
+          return Filter(rotate, rotation_degree);
       }
       throw std::invalid_argument("Error: This filter does not accept a rotation parameter.");
     }
@@ -927,8 +808,6 @@ Filters map_choice_to_filter(int choice) {
     case 15: return Filters::BLUR;
     case 16: return Filters::EDGE_DETECTION;
     case 17: return Filters::CROP;
-    case 18: return Filters::FRAME;
-    case 19: return Filters::OIL;
     default: throw std::invalid_argument("Out of bounds filter index");
   }
 }
@@ -952,8 +831,6 @@ std::string map_choice_to_filter_name(int choice) {
     case 15: return "Blur";
     case 16: return "Edge Detection";
     case 17: return "Crop";
-    case 18: return Filters::FRAME;
-    case 19: return Filters::OIL;
     default: throw std::invalid_argument("Out of bounds filter index");
   }
 }
@@ -1195,6 +1072,7 @@ void run_application_loop() {
         message = "Image Saved Successfully";
         has_unsaved_changes = false;
 
+<<<<<<< HEAD
         break;
       case 4:
         if (active_image.get_filename().empty()) {
@@ -1234,6 +1112,9 @@ void run_application_loop() {
     choice = 0;
   }
 }
+=======
+  processor.generate_filter(Filters::BLUR, 20, 20).apply_to_image(image);
+>>>>>>> 9f7657f (Add crop filter)
 
 int main() {
   run_application_loop();
