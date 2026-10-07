@@ -1,122 +1,87 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState, useRef } from "react";
+import "./App.css";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [loadedImage, setLoadedImage] = useState("");
+  const loadedImageStatusRef = useRef();
+  const [filteredImage, setFilteredImage] = useState("");
+  const filteredImageStatusRef = useRef();
+  async function handleImageUpload() {
+    try {
+      loadedImageStatusRef.current.innerText = "Opening file picker...";
+      const filePath = await window.openImagePickerDialog();
 
+      if (filePath === "CANCELLED") {
+        loadedImageStatusRef.current.innerText = "Selection cancelled.";
+        return;
+      }
+
+      loadedImageStatusRef.current.innerText = `Loading: ${filePath}`;
+
+      const base64Data = await window.loadImageWithStb(filePath);
+
+      if (base64Data === "ERROR") {
+        loadedImageStatusRef.current.innerText = "Error parsing image file with stb_image.";
+        return;
+      }
+
+      setLoadedImage(`data:image/png;base64,${base64Data}`);
+      setFilteredImage(`data:image/png;base64,${base64Data}`);
+      loadedImageStatusRef.current.innerText = "Image successfully loaded!";
+      filteredImageStatusRef.current.innerText = "Image successfully loaded!";
+    } catch (error) {
+      loadedImageStatusRef.current.innerText = "An unexpected error occurred.";
+      console.error(error);
+    }
+  }
+  async function handleImageSave() {
+    try {
+      const result = await window.saveActiveImageDialog();
+      if (result === "CANCELLED") {
+        throw Error("CANCELLED");
+      } else if (result === "WRITE_FAILED") {
+        throw Error("WRITE_FAILED");
+      } else if (result === "SUCCESS") {
+        console.log("SUCCESS");
+      } else {
+        throw Error("unexpected error");
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  async function handelApplyFilter() {
+    try {
+      const status = await window.applyFilter();
+      if (status !== "SUCCESS") throw Error("filter not applied");
+      const base64String = await window.getImageBase64();
+      setFilteredImage(`data:image/png;base64,${base64String}`);
+      filteredImageStatusRef.current.innerText = "Filter Successfully Applied!";
+    } catch (error) {
+      filteredImageStatusRef.current.innerText = "An unexpected error occured.";
+      console.log(error);
+    }
+  }
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+      <div class="container" style={{ display: "flex", justifyContent: "center", alignItems: "center", flexFlow: "column nowrap" }}>
+        <h2>Apply C++ Image Filters</h2>
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+          <div>
+            <p ref={loadedImageStatusRef}></p>
+            <img src={loadedImage} width={500} height={500} />
+            <button onClick={() => handleImageUpload()}>choose image</button>
+          </div>
+          <div>
+            <p ref={filteredImageStatusRef}></p>
+            <img src={filteredImage} alt="" width={500} height={500} />
+            <button onClick={() => handelApplyFilter()}>apply filter</button>
+          </div>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+        <button onClick={() => handleImageSave()}>save img</button>
+      </div>
     </>
-  )
+  );
 }
 
-export default App
+export default App;
