@@ -285,9 +285,7 @@ class Image_processor {
 
     static void purple(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i += image.channels) { 
-        // image.imageData[i] = std::min(255, image.imageData[i] + 90); 
         image.imageData[i+1] = std::max(0, image.imageData[i+1] - 60); 
-        // image.imageData[i+2] = std::min(255, image.imageData[i+2] + 90); 
       }
     }
 
