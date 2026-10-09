@@ -73,6 +73,7 @@ enum class Filters{
   FRAME,
   OIL,
   SKEW,
+  FANCY,
 };
 
 enum class Deg {
@@ -508,6 +509,54 @@ class Image_processor {
         image.imageData[i+2] = (unsigned char)(std::clamp(b*0.85f,0.0f,255.0f));
       }
     }
+
+static Image fancy(Image& image, int thickness){
+   
+  int gap = 5;
+  int line = 3;
+  int w = image.width + 2 * thickness;  
+  int h = image.height + 2 * thickness;
+
+
+  Image framed(w ,h);
+
+  
+ for (int x = 0; x < w; x++){
+  for (int y = 0; y < h; y++){
+    framed(x, y, 0) = 0;
+    framed(x, y, 1) = 0;
+    framed(x, y, 2) = 255;
+  }
+}
+
+
+
+  for (int i = 0; i < image.width; i++){
+    for (int j = 0; j < image.height; j++){
+      int d = min(min(i, j), min(image.width - 1 - i, image.height - 1 - j));
+      bool on_line = d >= gap && d < gap + line;
+
+
+        for (int k = 0; k < 3; k++){
+
+           framed(i + thickness, j + thickness, k) = on_line ? 255 : image(i, j, k);
+          
+
+        }
+
+    }
+  }
+
+   return framed;
+
+}
+
+
+
+
+
+
+
 
     static void blur_vertical(Image& image, int radius) {
       Image output_image(image.width, image.height);
