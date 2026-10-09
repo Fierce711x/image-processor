@@ -17,7 +17,7 @@
 #include <type_traits>
 #include <fstream>
 #include <filesystem>
-
+#include <cmath>
 
 // ignore this class, this is for gui.
 
@@ -72,6 +72,7 @@ enum class Filters{
   CROP,
   FRAME,
   OIL,
+  SKEW,
 };
 
 enum class Deg {
@@ -92,6 +93,8 @@ template<typename F>
 concept crop_filter_type = requires(F filter, Image& image, int x, int y, int w, int h) { filter(image, x, y, w, h);};
 template<typename F>
 concept merge_filter_type = requires(F filter, Image& image, Image& image2) { filter(image, image2);};
+template<typename F>
+concept skew_filter_type = requires(F filter, Image* image, double angle_deg) { filter(image, angle_deg);};
 class Filter {
   private: 
     std::function<void(Image&)> filter;
@@ -125,6 +128,11 @@ class Filter {
     template<merge_filter_type F>
     Filter(const F& filter, Image& image2): filter([filter, image2] (Image& image) mutable {
       filter(image, image2);
+    }) {}
+
+    template<skew_filter_type F>
+    Filter(const F& filter, double angle_deg): filter([filter, angle_deg] (Image& image) {
+      filter(image, angle_deg)
     }) {}
 
     void apply_to_image(Image& image) const {
@@ -286,98 +294,69 @@ class Image_processor {
     }
 
 
-  static Image frame(Image& image, int thickness){
-   
-  
-  int thickness;
-  
-  int w = image.width + 2 * thickness;  //because border is on both sides :)
-  int h = image.height + 2 * thickness;
+    static void frame(Image& image, int thickness){
+      int thickness;
+      int w = image.width + 2 * thickness;  //because border is on both sides :)
+      int h = image.height + 2 * thickness;
+      Image framed(w ,h);
 
-
-  Image framed(w ,h);
-
-  fill(framed.imageData, framed.imageData + w * h * framed.channels, 0);
-  for (int i = 0; i < image.width; i++){
-    for (int j = 0; j < image.height; j++){
-        for (int k = 0; k < 3; k++){
-          framed(i + thickness, j + thickness, k) = image(i,j,k);
-
-
+      std::fill(framed.imageData, framed.imageData + w * h * framed.channels, 0);
+      for (int i = 0; i < image.width; i++){
+        for (int j = 0; j < image.height; j++){
+          for (int k = 0; k < 3; k++){
+            framed(i + thickness, j + thickness, k) = image(i,j,k);
+          }
         }
-    }
-  }
-
-   return framed;
-
-}
-
-
-
-static Image oil(Image& image){
-
-     
-     Image result(image.width,image.height);
-     
-    
-    
-     const int groups = 20;
-     int radius = 3; 
-
-     for (int x = 0; x < image.width; x++){
-        for (int y = 0; y < image.height; y++){
-     
-             vector<int> bucket_count(groups, 0); 
-             vector<int> bucket_r(groups , 0);      
-             vector<int> bucket_g(groups , 0);
-             vector<int> bucket_b(groups , 0);
-
-
-               for (int dx = -radius; dx <= radius; dx++){
-                 for (int dy = -radius; dy <= radius; dy++){
-                  int nx = x + dx;
-                  int ny = y + dy;
-                 if (nx < 0 || ny < 0 || nx >= image.width || ny >= image.height) continue; 
-        
-                 int r = image(nx, ny, 0); 
-                 int g = image(nx, ny, 1);
-                 int b = image(nx, ny, 2);
-
-                 int intensity = (r + g + b) / 3;              
-                 int bucket_index = intensity * groups / 256;  
-
-                 bucket_count[bucket_index]++;
-                 bucket_r[bucket_index] += r;  
-                 bucket_g[bucket_index] += g;
-                 bucket_b[bucket_index] += b;
       }
+
+      image = framed;
     }
-    int winner = 0;
-    for (int b = 1; b < groups; b++){
-        if (bucket_count[b] > bucket_count[winner]){
-           winner = b;
-  }
-}
-  
 
-  result(x, y, 0) = bucket_r[winner] / bucket_count[winner];
-  result(x, y, 1) = bucket_g[winner] / bucket_count[winner];
-  result(x, y, 2) = bucket_b[winner] / bucket_count[winner];  
+    static void oil(Image& image){
+      Image result(image.width,image.height);
+      const int groups = 20;
+      int radius = 3; 
 
+      for (int x = 0; x < image.width; x++){
+        for (int y = 0; y < image.height; y++){
+          std::vector<int> bucket_count(groups, 0); 
+          std::vector<int> bucket_r(groups , 0);      
+          std::vector<int> bucket_g(groups , 0);
+          std::vector<int> bucket_b(groups , 0);
 
-  }
-}
+          for (int dx = -radius; dx <= radius; dx++){
+            for (int dy = -radius; dy <= radius; dy++){
+              int nx = x + dx;
+              int ny = y + dy;
+              if (nx < 0 || ny < 0 || nx >= image.width || ny >= image.height) continue; 
+      
+              int r = image(nx, ny, 0); 
+              int g = image(nx, ny, 1);
+              int b = image(nx, ny, 2);
 
+              int intensity = (r + g + b) / 3;              
+              int bucket_index = intensity * groups / 256;  
 
-  return result;
+              bucket_count[bucket_index]++;
+              bucket_r[bucket_index] += r;  
+              bucket_g[bucket_index] += g;
+              bucket_b[bucket_index] += b;
+            }
+          }
 
-
-}
-
-
-
-
-
+          int winner = 0;
+          for (int b = 1; b < groups; b++){
+            if (bucket_count[b] > bucket_count[winner]){
+              winner = b;
+            }
+          }
+          result(x, y, 0) = bucket_r[winner] / bucket_count[winner];
+          result(x, y, 1) = bucket_g[winner] / bucket_count[winner];
+          result(x, y, 2) = bucket_b[winner] / bucket_count[winner];  
+        }
+      }
+      image = result;
+    }
 
     static void purple(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i += image.channels) { 
@@ -666,6 +645,36 @@ static Image oil(Image& image){
       image = output_image;
     }
 
+    static void skew_vertical(Image& image, double angle_deg) {
+      double rad = angle_deg * (M_PI / 180.0);
+      int shift = static_cast<int>(image.width * std::tan(std::abs(rad)));
+      int new_height = image.height + shift;
+
+      Image output_image(image.width, new_height);
+
+      for (int x = 0; x < output_image.width; ++x) {
+        for (int y = 0; y < output_image.height; ++y) {
+          for (int c = 0; c < output_image.channels; ++c) {
+            output_image(x, y, c) = 255;
+          }
+        }
+      }
+
+      for (int x = 0; x < image.width; ++x) {
+        int y_shift = (angle_deg >= 0) ? static_cast<int>(x * std::tan(rad)) : static_cast<int>((image.width - 1 - x) * std::tan(std::abs(rad)));
+
+        for (int y = 0; y < image.height; ++y) {
+          int target_y = y + y_shift;
+          if (target_y >= 0 && target_y < new_height) {
+            for (int c = 0; c < image.channels; ++c) {
+              output_image(x, target_y, c) = image(x, y, c);
+            }
+          }
+        }
+      }
+      image = output_image;
+    }
+
   public: 
     Filter generate_filter(Filters filter_type) {
       switch (filter_type) {
@@ -690,8 +699,7 @@ static Image oil(Image& image){
         case Filters::EDGE_DETECTION:
           return Filter(edge_detection);
         case Filters::OIL:
-          return Filter(oil)
-
+          return Filter(oil);
         case Filters::LIGHT:
         case Filters::DARK:
         case Filters::ROTATE:
@@ -739,6 +747,13 @@ static Image oil(Image& image){
         return Filter(merge, image);
       }
       throw std::invalid_argument("Error: This filter does not accept these parameters.");
+    }
+
+    Filter generate_filter(Filters filter_type, double angle) {
+      if (filter_type == Filters::SKEW) {
+        return Filter(skew_vertical, angle);
+      }
+      throw std::invalid_argument("Error: This filter does not accept an angle parameter.");
     }
 
     static const Filterable_image create_filterable_image(std::string filename) {
