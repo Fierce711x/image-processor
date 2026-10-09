@@ -70,6 +70,8 @@ enum class Filters{
   BLUR,
   EDGE_DETECTION,
   CROP,
+  FRAME,
+  OIL,
 };
 
 enum class Deg {
@@ -282,6 +284,100 @@ class Image_processor {
         image.imageData[i+2] = value;
       }
     }
+
+
+  static Image frame(Image& image, int thickness){
+   
+  
+  int thickness;
+  
+  int w = image.width + 2 * thickness;  //because border is on both sides :)
+  int h = image.height + 2 * thickness;
+
+
+  Image framed(w ,h);
+
+  fill(framed.imageData, framed.imageData + w * h * framed.channels, 0);
+  for (int i = 0; i < image.width; i++){
+    for (int j = 0; j < image.height; j++){
+        for (int k = 0; k < 3; k++){
+          framed(i + thickness, j + thickness, k) = image(i,j,k);
+
+
+        }
+    }
+  }
+
+   return framed;
+
+}
+
+
+
+static Image oil(Image& image){
+
+     
+     Image result(image.width,image.height);
+     
+    
+    
+     const int groups = 20;
+     int radius = 3; 
+
+     for (int x = 0; x < image.width; x++){
+        for (int y = 0; y < image.height; y++){
+     
+             vector<int> bucket_count(groups, 0); 
+             vector<int> bucket_r(groups , 0);      
+             vector<int> bucket_g(groups , 0);
+             vector<int> bucket_b(groups , 0);
+
+
+               for (int dx = -radius; dx <= radius; dx++){
+                 for (int dy = -radius; dy <= radius; dy++){
+                  int nx = x + dx;
+                  int ny = y + dy;
+                 if (nx < 0 || ny < 0 || nx >= image.width || ny >= image.height) continue; 
+        
+                 int r = image(nx, ny, 0); 
+                 int g = image(nx, ny, 1);
+                 int b = image(nx, ny, 2);
+
+                 int intensity = (r + g + b) / 3;              
+                 int bucket_index = intensity * groups / 256;  
+
+                 bucket_count[bucket_index]++;
+                 bucket_r[bucket_index] += r;  
+                 bucket_g[bucket_index] += g;
+                 bucket_b[bucket_index] += b;
+      }
+    }
+    int winner = 0;
+    for (int b = 1; b < groups; b++){
+        if (bucket_count[b] > bucket_count[winner]){
+           winner = b;
+  }
+}
+  
+
+  result(x, y, 0) = bucket_r[winner] / bucket_count[winner];
+  result(x, y, 1) = bucket_g[winner] / bucket_count[winner];
+  result(x, y, 2) = bucket_b[winner] / bucket_count[winner];  
+
+
+  }
+}
+
+
+  return result;
+
+
+}
+
+
+
+
+
 
     static void purple(Image& image) {
       for (int i = 0; i < image.channels * image.height * image.width; i += image.channels) { 
@@ -593,10 +689,14 @@ class Image_processor {
           return Filter(sunny_effect);
         case Filters::EDGE_DETECTION:
           return Filter(edge_detection);
+        case Filters::OIL:
+          return Filter(oil)
+
         case Filters::LIGHT:
         case Filters::DARK:
         case Filters::ROTATE:
         case Filters::CROP:
+        case Filters::FRAME:
           throw std::invalid_argument("Error: This filter requires configuration arguments.");
         default:
           throw std::invalid_argument("Unknown filter type provided.");
@@ -852,6 +952,8 @@ std::string map_choice_to_filter_name(int choice) {
     case 15: return "Blur";
     case 16: return "Edge Detection";
     case 17: return "Crop";
+    case 18: return "frame";
+    case 19: return "oil";
     default: throw std::invalid_argument("Out of bounds filter index");
   }
 }
