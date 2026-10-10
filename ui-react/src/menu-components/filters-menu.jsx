@@ -20,6 +20,9 @@ export default function FiltersMenu({ handelApplyFilter, changeMenu, loading }) 
       <button onClick={() => handelApplyFilter("Old-Television")} disabled={loading}>
         Old Television
       </button>
+      <button onClick={() => changeMenu("Frame")} disabled={loading}>
+        Add Frame
+      </button>
       <button onClick={() => changeMenu("Lighten")} disabled={loading}>
         Lighten Brightness
       </button>
@@ -32,7 +35,7 @@ export default function FiltersMenu({ handelApplyFilter, changeMenu, loading }) 
       <button onClick={() => handelApplyFilter("Sunny")} disabled={loading}>
         Sunny
       </button>
-      <button onClick={() => handelApplyFilter("Merge-2-Images")} disabled={loading}>
+      <button onClick={() => changeMenu("Merge")} disabled={loading}>
         Merge 2 Images
       </button>
       <button onClick={() => changeMenu("Resize")} disabled={loading}>
@@ -46,6 +49,12 @@ export default function FiltersMenu({ handelApplyFilter, changeMenu, loading }) 
       </button>
       <button onClick={() => changeMenu("Crop")} disabled={loading}>
         Crop Image
+      </button>
+      <button onClick={() => handelApplyFilter("Oil")} disabled={loading}>
+        Oil Painted
+      </button>
+      <button onClick={() => changeMenu("Skew")} disabled={loading}>
+        Skew
       </button>
     </div>
   );

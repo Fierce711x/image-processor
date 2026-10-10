@@ -17,6 +17,7 @@
 #include <type_traits>
 #include <fstream>
 #include <filesystem>
+#include <cmath>
 
 
 // ignore this class, this is for gui.
@@ -38,18 +39,6 @@
 //     }
 // };
 
-
-namespace UI {
-  inline std::ostream& error(std::ostream& os)   { return os << "\033[1;31m"; }
-  inline std::ostream& clear(std::ostream& os)   { return os << "\033[H\033[J"; }
-  inline std::ostream& reset(std::ostream& os)   { return os << "\033[0m"; }
-  inline std::ostream& bold(std::ostream& os)    { return os << "\033[1m"; }
-  inline std::ostream& cyan(std::ostream& os)    { return os << "\033[1;36m"; }
-  inline std::ostream& green(std::ostream& os)   { return os << "\033[1;32m"; }
-  inline std::ostream& yellow(std::ostream& os)  { return os << "\033[1;33m"; }
-  inline std::ostream& gray(std::ostream& os)    { return os << "\033[90m"; }
-}
-
 // Append new filter types here using UPPER_CASE naming conventions. Access via Filters::ENUM_NAME.
 
 enum class Filters{
@@ -70,6 +59,10 @@ enum class Filters{
   BLUR,
   EDGE_DETECTION,
   CROP,
+  FRAME,
+  OIL,
+  SKEW,
+  FANCY,
 };
 
 enum class Deg {
@@ -89,7 +82,9 @@ concept blur_filter_type = requires(F filter, Image& image, int x_radius, int y_
 template<typename F>
 concept crop_filter_type = requires(F filter, Image& image, int x, int y, int w, int h) { filter(image, x, y, w, h);};
 template<typename F>
-concept merge_filter_type = requires(F filter, Image& image, Image& image2) { filter(image, image2);};
+concept merge_filter_type = requires(F filter, Image& image, Image& image2, int option) { filter(image, image2, option);};
+template<typename F>
+concept skew_filter_type = requires(F filter, Image* image, double angle_deg) { filter(image, angle_deg);};
 class Filter {
   private: 
     std::function<void(Image&)> filter;
@@ -121,8 +116,13 @@ class Filter {
     }) {}
     
     template<merge_filter_type F>
-    Filter(const F& filter, Image& image2): filter([filter, image2] (Image& image) mutable {
-      filter(image, image2);
+    Filter(const F& filter, Image& image2, int option): filter([filter, image2, option] (Image& image) mutable {
+      filter(image, image2, option);
+    }) {}
+
+    template<skew_filter_type F>
+    Filter(const F& filter, double angle_deg): filter([filter, angle_deg] (Image& image) {
+      filter(image, angle_deg);
     }) {}
 
     void apply_to_image(Image& image) const {
@@ -205,7 +205,7 @@ class Image_processor {
     }
 
     static void dark(Image& image, uint8_t brightness_level) {
-      float multiplier = 1 - brightness_level/255.0f;
+      float multiplier = 1.0f / (brightness_level/255.0f + 1.0f);
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
         int r =  image.imageData[i]*multiplier;
         int g =  image.imageData[i+1]*multiplier;
@@ -392,13 +392,16 @@ class Image_processor {
       image = result;
     }
 
-    static void merge(Image& image1, Image& image2){
-      if(image1.height>image2.height || image1.width>image2.width){
-        resize(image1,image2.width,image2.height);
-      }
-      
-      if(image1.height<image2.height || image1.width<image2.width){
+    static void merge(Image& image1, Image& image2, int option){
+      if (option == 1){
         resize(image2,image1.width,image1.height);
+      } else if(option == 2){
+        resize(image1,image2.width,image2.height);
+      } else if (option == 3) {
+        int w = std::min(image1.width, image2.width);
+        int h = std::min(image1.height, image2.height);
+        resize(image1, w, h);
+        resize(image2, w, h);
       }
 
       Image result_img(image1.width,image1.height);
@@ -572,6 +575,168 @@ class Image_processor {
       image = output_image;
     }
 
+    static void frame(Image& image){
+      int w = image.width + 2 * 20;  //because border is on both sides :)
+      int h = image.height + 2 * 20;
+      Image framed(w ,h);
+
+      for (int x = 0; x < w; x++){
+        for (int y = 0; y < h; y++){
+          framed(x, y, 0) = 0;
+          framed(x, y, 1) = 0;
+          framed(x, y, 2) = 255;
+        }
+      }
+      
+      for (int i = 0; i < image.width; i++){
+        for (int j = 0; j < image.height; j++){
+          for (int k = 0; k < 3; k++){
+            framed(i + 20, j + 20, k) = image(i,j,k);
+          }
+        }
+      }
+
+      image = framed;
+    }
+
+    static void oil(Image& image){
+      Image result(image.width,image.height);
+      const int groups = 20;
+      int radius = 3; 
+
+      for (int x = 0; x < image.width; x++){
+        for (int y = 0; y < image.height; y++){
+          std::vector<int> bucket_count(groups, 0); 
+          std::vector<int> bucket_r(groups , 0);      
+          std::vector<int> bucket_g(groups , 0);
+          std::vector<int> bucket_b(groups , 0);
+
+          for (int dx = -radius; dx <= radius; dx++){
+            for (int dy = -radius; dy <= radius; dy++){
+              int nx = x + dx;
+              int ny = y + dy;
+              if (nx < 0 || ny < 0 || nx >= image.width || ny >= image.height) continue; 
+      
+              int r = image(nx, ny, 0); 
+              int g = image(nx, ny, 1);
+              int b = image(nx, ny, 2);
+
+              int intensity = (r + g + b) / 3;              
+              int bucket_index = intensity * groups / 256;  
+
+              bucket_count[bucket_index]++;
+              bucket_r[bucket_index] += r;  
+              bucket_g[bucket_index] += g;
+              bucket_b[bucket_index] += b;
+            }
+          }
+
+          int winner = 0;
+          for (int b = 1; b < groups; b++){
+            if (bucket_count[b] > bucket_count[winner]){
+              winner = b;
+            }
+          }
+          result(x, y, 0) = bucket_r[winner] / bucket_count[winner];
+          result(x, y, 1) = bucket_g[winner] / bucket_count[winner];
+          result(x, y, 2) = bucket_b[winner] / bucket_count[winner];  
+        }
+      }
+      image = result;
+    }
+
+    static void skew_vertical(Image& image, double angle_deg) {
+      double rad = angle_deg * (M_PI / 180.0);
+      int shift = static_cast<int>(image.width * std::tan(std::abs(rad)));
+      int new_height = image.height + shift;
+
+      Image output_image(image.width, new_height);
+
+      for (int x = 0; x < output_image.width; ++x) {
+        for (int y = 0; y < output_image.height; ++y) {
+          for (int c = 0; c < output_image.channels; ++c) {
+            output_image(x, y, c) = 255;
+          }
+        }
+      }
+
+      for (int x = 0; x < image.width; ++x) {
+        int y_shift = (angle_deg >= 0) ? static_cast<int>(x * std::tan(rad)) : static_cast<int>((image.width - 1 - x) * std::tan(std::abs(rad)));
+
+        for (int y = 0; y < image.height; ++y) {
+          int target_y = y + y_shift;
+          if (target_y >= 0 && target_y < new_height) {
+            for (int c = 0; c < image.channels; ++c) {
+              output_image(x, target_y, c) = image(x, y, c);
+            }
+          }
+        }
+      }
+      image = output_image;
+    }
+
+    static void skew_horizontal(Image& image, double angle_deg) {
+      double rad = angle_deg * (M_PI / 180.0);
+      double tan_angle = std::tan(rad);
+      double abs_tan = std::abs(tan_angle);
+      
+      int shift = static_cast<int>(image.height * abs_tan);
+      int new_width = image.width + shift;
+
+      Image output_image(new_width, image.height);
+
+      // LOOP OVER THE DESTINATION IMAGE
+      for (int y = 0; y < output_image.height; ++y) {
+        // Calculate the horizontal shift for this row based on the Y position
+        // This elevates/shifts the bottom or top depending on the angle sign
+        int x_shift = (angle_deg >= 0) ? static_cast<int>((image.height - 1 - y) * tan_angle) : static_cast<int>(y * abs_tan);
+
+        for (int x = 0; x < output_image.width; ++x) {
+          // Map BACKWARD horizontally to find the source pixel
+          int src_x = x - x_shift;
+
+          if (src_x >= 0 && src_x < image.width) {
+            for (int c = 0; c < output_image.channels; ++c) {
+              output_image(x, y, c) = image(src_x, y, c);
+            }
+          } else {
+            // Background padding
+            for (int c = 0; c < output_image.channels; ++c) {
+              output_image(x, y, c) = 255; 
+            }
+          }
+        }
+      }
+      image = output_image;
+    }
+
+    static void fancy(Image& image){
+      int gap = 5;
+      int line = 3;
+      int w = image.width + 2 * 20;  
+      int h = image.height + 2 * 20;
+      Image framed(w ,h);
+
+      for (int x = 0; x < w; x++){
+        for (int y = 0; y < h; y++){
+          framed(x, y, 0) = 0;
+          framed(x, y, 1) = 0;
+          framed(x, y, 2) = 255;
+        }
+      }
+
+      for (int i = 0; i < image.width; i++){
+        for (int j = 0; j < image.height; j++){
+          int d = std::min(std::min(i, j), std::min(image.width - 1 - i, image.height - 1 - j));
+          bool on_line = d >= gap && d < gap + line;
+          for (int k = 0; k < 3; k++){
+            framed(i + 20, j + 20, k) = on_line ? 255 : image(i, j, k);
+          }
+        }
+      }
+      image = framed;
+    }
+
   public: 
     Filter generate_filter(Filters filter_type) {
       switch (filter_type) {
@@ -595,6 +760,12 @@ class Image_processor {
           return Filter(sunny_effect);
         case Filters::EDGE_DETECTION:
           return Filter(edge_detection);
+        case Filters::OIL:
+          return Filter(oil);
+        case Filters::FRAME:
+          return Filter(frame);
+        case Filters::FANCY:
+          return Filter(fancy);
         case Filters::LIGHT:
         case Filters::DARK:
         case Filters::ROTATE:
@@ -604,6 +775,7 @@ class Image_processor {
           throw std::invalid_argument("Unknown filter type provided.");
       }
     }
+
     Filter generate_filter(Filters filter_type, uint8_t brightness_level) {
       switch (filter_type) {
         case Filters::LIGHT:
@@ -625,8 +797,9 @@ class Image_processor {
     Filter generate_filter(Filters filter_type, int x_radius, int y_radius) {
       if (filter_type == Filters::BLUR) {
         return Filter(blur, x_radius, y_radius);
-      }
-      throw std::invalid_argument("Error: This filter does not accept radius parameters.");
+      } else if (filter_type == Filters::RESIZE) {
+        return Filter(resize, x_radius, y_radius);
+      } else throw std::invalid_argument("Error: This filter does not accept radius parameters.");
     }
 
     Filter generate_filter(Filters filter_type, int x, int y, int w, int h) {
@@ -636,501 +809,22 @@ class Image_processor {
       throw std::invalid_argument("Error: This filter does not accept these parameters.");
     }
 
-    Filter generate_filter(Filters filter_type, Image& image) {
+    Filter generate_filter(Filters filter_type, Image& image, int option) {
       if (filter_type == Filters::MERGE) {
-        return Filter(merge, image);
+        return Filter(merge, image, option);
       }
       throw std::invalid_argument("Error: This filter does not accept these parameters.");
+    }
+
+    Filter generate_filter(Filters filter_type, double angle) {
+      if (filter_type == Filters::SKEW) {
+        return Filter(skew_horizontal, angle);
+      } else {
+        throw std::invalid_argument("Error: This filter does not accept an angle parameter.");
+      }
     }
 
     static const Filterable_image create_filterable_image(std::string filename) {
       return Filterable_image(filename);
     }
 };
-
-bool filename_exists(const std::string& user_input) {
-  std::filesystem::path filepath(user_input);
-  return std::filesystem::exists(filepath) && !filepath.has_parent_path();
-}
-
-bool is_valid_option_choice(int choice) {
-  return choice < 1 || choice > 5 ? false : true;
-}
-
-bool is_valid_filter_choice(int choice) {
-  return choice < 1 || choice > 18 ? false : true;
-}
-
-void display_option_menu(bool error, std::string message = "") {
-  std::cout << UI::clear;
-
-  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n";
-  std::cout << UI::cyan << UI::bold << "         IMAGE FILTER APP        " << UI::reset << "\n";
-  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n\n";
-
-  if (message != "" && !error) std::cout << UI::green << message << UI::reset << "\n\n";
-  else if (message != "" && error) std::cout << UI::error << message << UI::reset << "\n\n";
-
-  std::cout << UI::bold << "Please select an option:\n" << UI::reset;
-  std::cout << UI::green << "1." << UI::reset << " Load new image\n";
-  std::cout << UI::green << "2." << UI::reset << " Apply filter\n";
-  std::cout << UI::green << "3." << UI::reset << " Save image\n";
-  std::cout << UI::green << "4." << UI::reset << " Reset Image to Original State\n";
-  std::cout << UI::yellow << "5." << UI::reset << " Exit program\n\n";
-  
-  std::cout << UI::bold << "Enter choice number: " << UI::reset;
-}
-
-void display_load_image_menu(bool error) {
-  std::cout << UI::clear;
-
-  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n";
-  std::cout << UI::cyan << UI::bold << "         LOAD NEW IMAGE          " << UI::reset << "\n";
-  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n\n";
-
-  error && std::cout << UI::error << "No Image With That Filename Exists In Current Directory" << UI::reset << "\n\n";
-
-  std::cout << UI::bold << "Enter the image filename only and make sure its in the current directory\n" << UI::reset;
-  std::cout << "Examples: " << UI::green << "image.ppm" << UI::reset << ", " << UI::green << "data/photo.pgm" << UI::reset << "\n\n";
-
-  std::cout << UI::bold << "Path: " << UI::reset;
-}
-
-void display_filter_choice_menu(bool error, const Filterable_image& active_image, const std::string message = "") { 
-  std::cout << UI::clear;
-
-  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n";
-  std::cout << UI::cyan << UI::bold << "        APPLY IMAGE FILTER       " << UI::reset << "\n";
-  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n";
-  std::cout << "Active Image: " << UI::green << active_image.get_filename() << UI::reset << "\n\n";
-
-  if (message != "" && !error) std::cout << UI::green << message << UI::reset << "\n\n";
-  error && std::cout << UI::error << "Previous Option Was Invalid" << UI::reset << "\n\n";
-
-  std::cout << UI::bold << "Select a filter to apply:\n" << UI::reset;
-  std::cout << UI::green << "1."  << UI::reset << " Invert Colors\n";
-  std::cout << UI::green << "2."  << UI::reset << " Flip Horizontally\n";
-  std::cout << UI::green << "3."  << UI::reset << " Flip Vertically\n";
-  std::cout << UI::green << "4."  << UI::reset << " Grayscale\n";
-  std::cout << UI::green << "5."  << UI::reset << " Black & White\n";
-  std::cout << UI::green << "6."  << UI::reset << " Purple Tint\n";
-  std::cout << UI::green << "7."  << UI::reset << " Infrared\n";
-  std::cout << UI::green << "8."  << UI::reset << " Old Television\n";
-  std::cout << UI::green << "9."  << UI::reset << " Lighten Brightness\n";
-  std::cout << UI::green << "10." << UI::reset << " Darken Brightness\n";
-  std::cout << UI::green << "11." << UI::reset << " Rotate Image\n";
-  std::cout << UI::green << "12." << UI::reset << " Sunny\n";
-  std::cout << UI::green << "13." << UI::reset << " Merge 2 Images\n";
-  std::cout << UI::green << "14." << UI::reset << " Resize\n";
-  std::cout << UI::green << "15." << UI::reset << " Blur\n";
-  std::cout << UI::green << "16." << UI::reset << " Edge Detection\n";
-  std::cout << UI::green << "17." << UI::reset << " Crop Image\n";
-  std::cout << UI::yellow << "18." << UI::reset << " Cancel (Back to Main Menu)\n\n";
-
-  std::cout << UI::bold << "Enter filter choice: " << UI::reset;
-}
-
-void display_save_image_menu() {
-  std::cout << UI::clear;
-  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n";
-  std::cout << UI::cyan << UI::bold << "           Save IMAGE            " << UI::reset << "\n";
-  std::cout << UI::cyan << UI::bold << "=================================" << UI::reset << "\n\n";
-}
-
-void handle_image_save(Filterable_image& active_image) {
-  std::string filename;
-  while (true) {
-    std::cout << UI::bold << "Enter new filename to save the image to (e.g., 'output.ppm'): " << UI::reset;
-    std::cin >> filename;
-
-    std::filesystem::path p(filename);
-
-    if (p.has_parent_path()) {
-      std::cout << UI::error << "ERROR: paths are not allowed! " << UI::reset << "Type just the filename.\n\n";
-      continue; 
-    } 
-    
-    if (filename.empty()) {
-      std::cout << UI::error << "ERROR: Filename cannot be empty.\n\n" << UI::reset;
-      continue;
-    }
-
-    if (filename_exists(filename)) {
-      std::cout << "\n" << UI::yellow << "WARNING: A file named '" << filename << "' already exists!" << UI::reset << "\n";
-      std::cout << "Do you want to overwrite it? (" << UI::green << "Y" << UI::reset << "/" << UI::error << "N" << UI::reset << "): ";
-
-      char overwrite_choice;
-      std::cin >> overwrite_choice;
-
-      if (overwrite_choice != 'y' && overwrite_choice != 'Y') {
-        std::cout << "\nOperation cancelled. try a different filename.\n\n";
-        continue; 
-      }
-    }
-
-    break; 
-  }
-
-  Image image = active_image.get_image();
-
-  image.saveImage(filename);
-}
-
-std::string get_image_filename () {
-  std::string filename;
-  std::cin >> filename;
-
-  while (!filename_exists(filename)) {
-    display_load_image_menu(true);
-    std::cin >> filename;
-  }
-
-  return filename;
-}
-
-int get_selected_choice() {
-  int choice = 0;
-  std::cin >> choice;
-
-  while (!is_valid_option_choice(choice)) {
-    display_option_menu(true, "Previous Option Was Invalid");
-    std::cin >> choice;
-  }
-
-  return choice;
-}
-
-int get_selected_filter_choice(const Filterable_image& active_image) {
-  int filter_choice = 0;
-  std::cin >> filter_choice;
-
-  while (!is_valid_filter_choice(filter_choice)) {
-    display_filter_choice_menu(true, active_image);
-    std::cin >> filter_choice;
-  }
-  
-  return filter_choice;
-}
-
-Filters map_choice_to_filter(int choice) {
-  switch (choice) {
-    case 1:  return Filters::INVERT;
-    case 2:  return Filters::FLIP_HORIZONTAL;
-    case 3:  return Filters::FLIP_VERTICAL;
-    case 4:  return Filters::GRAY_SCALE;
-    case 5:  return Filters::BLACK_AND_WHITE;
-    case 6:  return Filters::PURPLE;
-    case 7:  return Filters::INFRARED;
-    case 8:  return Filters::TV;
-    case 9:  return Filters::LIGHT;
-    case 10: return Filters::DARK;
-    case 11: return Filters::ROTATE;
-    case 12: return Filters::SUNNY;
-    case 13: return Filters::MERGE;
-    case 14: return Filters::RESIZE;
-    case 15: return Filters::BLUR;
-    case 16: return Filters::EDGE_DETECTION;
-    case 17: return Filters::CROP;
-    default: throw std::invalid_argument("Out of bounds filter index");
-  }
-}
-
-std::string map_choice_to_filter_name(int choice) {
-  switch (choice) {
-    case 1:  return "Invert";
-    case 2:  return "Horizontal Flip";
-    case 3:  return "Vertical Flip";
-    case 4:  return "Gray Scale";
-    case 5:  return "Black And White";
-    case 6:  return "Purple Tint";
-    case 7:  return "Infrared";
-    case 8:  return "TV";
-    case 9:  return "Light";
-    case 10: return "Dark";
-    case 11: return "Rotate";
-    case 12: return "Sunny";
-    case 13: return "Merge";
-    case 14: return "Resize";
-    case 15: return "Blur";
-    case 16: return "Edge Detection";
-    case 17: return "Crop";
-    default: throw std::invalid_argument("Out of bounds filter index");
-  }
-}
-
-
-void process_filter_selection(Filters choice, Filterable_image& active_image, Image_processor& processor) {
-  switch (choice) {
-    case Filters::INVERT:
-    case Filters::FLIP_HORIZONTAL:
-    case Filters::FLIP_VERTICAL:
-    case Filters::GRAY_SCALE:
-    case Filters::BLACK_AND_WHITE:
-    case Filters::PURPLE:
-    case Filters::INFRARED:
-    case Filters::TV:
-    case Filters::SUNNY:
-    case Filters::EDGE_DETECTION: {
-      processor.generate_filter(choice).apply_to_image(active_image.get_image());
-      break;
-    }
-
-    case Filters::LIGHT: {
-      std::cout << UI::bold << "\nEnter brightness level (0 - 255): " << UI::reset;
-      int input_level = 0;
-      std::cin >> input_level;
-      uint8_t level = static_cast<uint8_t>(std::clamp(input_level, 0, 255));
-      
-      processor.generate_filter(choice, level).apply_to_image(active_image.get_image());
-      break;
-    }
-
-    case Filters::DARK: {
-      std::cout << UI::bold << "\nEnter darkness scale factor (0 - 255): " << UI::reset;
-      int input_level = 0;
-      std::cin >> input_level;
-      uint8_t level = static_cast<uint8_t>(std::clamp(input_level, 0, 255));
-      
-      processor.generate_filter(choice, level).apply_to_image(active_image.get_image());
-      break;
-    }
-
-    case Filters::ROTATE: {
-      std::cout << UI::bold << "\nSelect rotation angle:\n" << UI::reset;
-      std::cout << " 1. 90 Degrees\n 2. 180 Degrees\n 3. 270 Degrees\n";
-      std::cout << UI::bold << "Choice: " << UI::reset;
-      int deg_choice = 0;
-      std::cin >> deg_choice;
-
-      Deg degree = Deg::DEG90;
-      if (deg_choice == 2) degree = Deg::DEG180;
-      if (deg_choice == 3) degree = Deg::DEG270;
-
-      processor.generate_filter(choice, degree).apply_to_image(active_image.get_image());
-      break;
-    }
-
-    case Filters::MERGE: {
-      std::string second_filename;
-      std::filesystem::path second_path;
-
-      while (true) {
-        std::cout << UI::clear;
-        std::cout << UI::cyan << UI::bold << "=== MERGE IMAGE ===" << UI::reset << "\n\n";
-        std::cout << "Enter the name of the SECOND image file to merge with: ";
-        std::cin >> second_filename;
-
-        second_path = std::filesystem::path(second_filename);
-
-        if (second_path.has_parent_path()) {
-          std::cout << UI::error << "\nERROR: paths are not Allowed! " << UI::reset << "Type just the local filename (e.g., 'overlay.ppm').\n";
-          std::cout << "\nPress Enter to try a different name...";
-          std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-          std::cin.get();
-          continue; 
-        }
-
-        if (!std::filesystem::exists(second_path)) {
-          std::cout << UI::error << "\nERROR: The file '" << second_filename << "' does not exist!" << UI::reset << "\n";
-          std::cout << "Please make sure it is placed inside the current project folder.\n";
-          std::cout << "\nPress Enter to try a different name...";
-          std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-          std::cin.get();
-          continue;
-        }
-
-        break;
-      }
-
-      Image second_image(second_filename);
-      processor.generate_filter(choice, second_image).apply_to_image(active_image.get_image());
-      std::cout << UI::green << "\n[Queue] Added safe Merge Filter (Source: " << second_filename << ")." << UI::reset << "\n";
-      break;
-    }
-
-    case Filters::RESIZE: {
-      int new_w = 0, new_h = 0;
-      
-      int current_w = active_image.get_image().width;
-      int current_h = active_image.get_image().height;
-
-      while (true) {
-        std::cout << UI::clear;
-        std::cout << UI::cyan << UI::bold << "=== RESIZE IMAGE ===" << UI::reset << "\n";
-        std::cout << "Current Dimensions: " << UI::green << current_w << " x " << current_h << UI::reset << " pixels\n\n";
-
-        std::cout << UI::bold << "Enter New Width (Pixels): " << UI::reset;
-        std::cin >> new_w;
-        std::cout << UI::bold << "Enter New Height (Pixels): " << UI::reset;
-        std::cin >> new_h;
-
-        if (new_w > 0 && new_h > 0) {
-          break;
-        }
-        std::cout << "\n" << UI::error << "ERROR: Invalid scale boundaries!" << UI::reset << "\n";
-        std::cout << "• Dimensions must be positive whole numbers greater than 0.\n";
-        std::cout << "• You entered: " << new_w << " x " << new_h << "\n";
-        std::cout << "\nPress Enter to try specify scale dimensions again...";
-        
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cin.get();
-      }
-
-      active_image.add_filter(processor.generate_filter(choice, new_w, new_h));
-      std::cout << UI::green << "\n[Queue] Added safe Resize Filter (" << new_w << "x" << new_h << ")." << UI::reset << "\n";
-      break;
-    }
-
-    case Filters::BLUR: {
-      std::cout << UI::bold << "\nEnter Horizontal Blur Radius (X): " << UI::reset;
-      int x_rad = 0; std::cin >> x_rad;
-      std::cout << UI::bold << "Enter Vertical Blur Radius (Y): " << UI::reset;
-      int y_rad = 0; std::cin >> y_rad;
-
-      processor.generate_filter(choice, x_rad, y_rad).apply_to_image(active_image.get_image());
-      break;
-    }
-
-    case Filters::CROP: {
-      int x = 0, y = 0, w = 0, h = 0;
-      int max_w = active_image.get_image().width;
-      int max_h = active_image.get_image().height;
-
-      while (true) {
-        std::cout << UI::clear;
-        std::cout << UI::cyan << UI::bold << "=== CROP IMAGE ===" << UI::reset << "\n";
-        std::cout << "Image Dimensions: " << UI::green << max_w << " x " << max_h << UI::reset << " pixels\n\n";
-
-        std::cout << UI::bold << "Enter Crop Start Coordinates (X Y): " << UI::reset;
-        std::cin >> x >> y;
-        std::cout << UI::bold << "Enter Box Dimensions (Width Height): " << UI::reset;
-        std::cin >> w >> h;
-
-        if (x >= 0 && y >= 0 && w > 0 && h > 0 && (x + w) <= max_w && (y + h) <= max_h) {
-          break; 
-        }
-
-        std::cout << "\n" << UI::error << "ERROR: Crop bounds are out of range!" << UI::reset << "\n";
-        std::cout << "• Your box reached: X max = " << (x + w) << " (Limit: " << max_w << ")\n";
-        std::cout << "• Your box reached: Y max = " << (y + h) << " (Limit: " << max_h << ")\n";
-        std::cout << "\nPress Enter to re-specify valid crop dimensions...";
-        
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-        std::cin.get();
-      }
-
-      processor.generate_filter(choice, x, y, w, h).apply_to_image(active_image.get_image());
-      break;
-    }
-
-    default:
-      std::cout << UI::yellow << "\nFilter generation route missing from instance methods." << UI::reset << "\n";
-      break;
-  }
-}
-
-void run_application_loop() {
-  Image image;
-  Filterable_image active_image;
-  Image_processor processor;
-  bool has_unsaved_changes = false;
-  int choice = 0;
-  int filter_choice;
-  std::string message;
-  std::string filename;
-  bool is_error_message = false;
-  bool stop_app = false;
-  while (!stop_app) {
-    switch (choice) {
-      case 0:
-        display_option_menu(is_error_message, message);
-        choice = get_selected_choice();
-        message = "";
-        is_error_message = false;
-        continue;
-      case 1:
-        if (has_unsaved_changes) {
-          std::cout << "\n" << UI::yellow << "WARNING: You have unsaved changes in your workspace!" << UI::reset << "\n";
-          std::cout << "Loading a new file will completely discard your current filters.\n";
-          std::cout << "Are you sure you want to proceed? (" << UI::green << "Y" << UI::reset << "/" << UI::error << "N" << UI::reset << "): ";
-          
-          char confirm; std::cin >> confirm;
-          if (confirm != 'y' && confirm != 'Y') {
-            std::cout << "\nOperation aborted. Returning to main menu workspace.\n";
-            break;
-          }
-        }
-        display_load_image_menu(false);
-        filename = get_image_filename();
-        image = Image(filename);
-        active_image = Filterable_image(image, filename);
-        message = "Image Loaded Successfully";
-        break;
-      case 2:
-        if (active_image.get_filename().empty()) {
-          message = "No Image Loaded To Apply A Filter To";
-          is_error_message = true;
-          choice = 0;
-          continue;
-        }
-        display_filter_choice_menu(false, active_image, message);
-        filter_choice = get_selected_filter_choice(active_image);
-        if (filter_choice == 18) {
-          choice = 0;
-          message = "";
-        } else {
-          process_filter_selection(map_choice_to_filter(filter_choice), active_image, processor);
-          message = map_choice_to_filter_name(filter_choice) + " Filter Applied Successfully";
-          has_unsaved_changes = true;
-        }
-        continue;
-      case 3:
-        if (active_image.get_filename().empty()) {
-          message = "No Image Loaded To Save";
-          is_error_message = true;
-          break;
-        }
-        display_save_image_menu();
-        handle_image_save(active_image);
-        message = "Image Saved Successfully";
-        has_unsaved_changes = false;
-
-        break;
-      case 4:
-        if (active_image.get_filename().empty()) {
-          message = "No Image Loaded To Reset";
-          is_error_message = true;
-          choice = 0;
-          continue;
-        }
-        if (has_unsaved_changes) {
-          std::cout << "\n" << UI::yellow << "WARNING: You have unsaved changes in your workspace!" << UI::reset << "\n";
-          std::cout << "Loading a new file will completely discard your current filters.\n";
-          std::cout << "Are you sure you want to proceed? (" << UI::green << "Y" << UI::reset << "/" << UI::error << "N" << UI::reset << "): ";
-          
-          char confirm; std::cin >> confirm;
-          if (confirm != 'y' && confirm != 'Y') {
-            std::cout << "\nOperation aborted. Returning to main menu workspace.\n";
-            break;
-          }
-        }
-        active_image = Filterable_image(image, filename);
-        message = "Image Reseted Successfully";
-        break;
-      case 5:
-        if (has_unsaved_changes) {
-          std::cout << "\n" << UI::yellow << "WARNING: You have unsaved changes in your workspace!" << UI::reset << "\n";
-          std::cout << "Loading a new file will completely discard your current filters.\n";
-          std::cout << "Are you sure you want to proceed? (" << UI::green << "Y" << UI::reset << "/" << UI::error << "N" << UI::reset << "): ";
-          
-          char confirm; std::cin >> confirm;
-          if (confirm != 'y' && confirm != 'Y') {
-            std::cout << "\nOperation aborted. Returning to main menu workspace.\n";
-            break;
-          }
-        }
-        stop_app = true;
-    }
-    choice = 0;
-  }
-}

@@ -93,7 +93,7 @@ concept blur_filter_type = requires(F filter, Image& image, int x_radius, int y_
 template<typename F>
 concept crop_filter_type = requires(F filter, Image& image, int x, int y, int w, int h) { filter(image, x, y, w, h);};
 template<typename F>
-concept merge_filter_type = requires(F filter, Image& image, Image& image2) { filter(image, image2);};
+concept merge_filter_type = requires(F filter, Image& image, Image& image2, int option) { filter(image, image2, option);};
 template<typename F>
 concept skew_filter_type = requires(F filter, Image* image, double angle_deg) { filter(image, angle_deg);};
 class Filter {
@@ -127,13 +127,13 @@ class Filter {
     }) {}
     
     template<merge_filter_type F>
-    Filter(const F& filter, Image& image2): filter([filter, image2] (Image& image) mutable {
-      filter(image, image2);
+    Filter(const F& filter, Image& image2, int option): filter([filter, image2, option] (Image& image) mutable {
+      filter(image, image2, option);
     }) {}
 
     template<skew_filter_type F>
     Filter(const F& filter, double angle_deg): filter([filter, angle_deg] (Image& image) {
-      filter(image, angle_deg)
+      filter(image, angle_deg);
     }) {}
 
     void apply_to_image(Image& image) const {
@@ -216,7 +216,7 @@ class Image_processor {
     }
 
     static void dark(Image& image, uint8_t brightness_level) {
-      float multiplier = 1 - brightness_level/255.0f;
+      float multiplier = 1.0f / (brightness_level/255.0f + 1.0f);
       for(int i=0;i<(image.height*image.channels*image.width);i+=image.channels){
         int r =  image.imageData[i]*multiplier;
         int g =  image.imageData[i+1]*multiplier;
@@ -295,17 +295,23 @@ class Image_processor {
     }
 
 
-    static void frame(Image& image, int thickness){
-      int thickness;
-      int w = image.width + 2 * thickness;  //because border is on both sides :)
-      int h = image.height + 2 * thickness;
+    static void frame(Image& image){
+      int w = image.width + 2 * 20;  //because border is on both sides :)
+      int h = image.height + 2 * 20;
       Image framed(w ,h);
 
-      std::fill(framed.imageData, framed.imageData + w * h * framed.channels, 0);
+      for (int x = 0; x < w; x++){
+        for (int y = 0; y < h; y++){
+          framed(x, y, 0) = 0;
+          framed(x, y, 1) = 0;
+          framed(x, y, 2) = 255;
+        }
+      }
+
       for (int i = 0; i < image.width; i++){
         for (int j = 0; j < image.height; j++){
           for (int k = 0; k < 3; k++){
-            framed(i + thickness, j + thickness, k) = image(i,j,k);
+            framed(i + 20, j + 20, k) = image(i,j,k);
           }
         }
       }
@@ -445,7 +451,6 @@ class Image_processor {
     }
 
     static void resize(Image& image,int new_width,int new_height){
-      
       Image result(new_width,new_height);
 
       float scaleX= static_cast<float>(image.width)/new_width;
@@ -466,13 +471,16 @@ class Image_processor {
       image = result;
     }
 
-    static void merge(Image& image1, Image& image2){
-      if(image1.height>image2.height || image1.width>image2.width){
-        resize(image1,image2.width,image2.height);
-      }
-      
-      if(image1.height<image2.height || image1.width<image2.width){
+    static void merge(Image& image1, Image& image2, int option){
+      if(option == 1){
         resize(image2,image1.width,image1.height);
+      } else if(option == 2){
+        resize(image1,image2.width,image2.height);
+      } else if (option == 3) {
+        int w = std::min(image1.width, image2.width);
+        int h = std::min(image1.height, image2.height);
+        resize(image1, w, h);
+        resize(image2, w, h);
       }
 
       Image result_img(image1.width,image1.height);
@@ -510,53 +518,32 @@ class Image_processor {
       }
     }
 
-static Image fancy(Image& image, int thickness){
-   
-  int gap = 5;
-  int line = 3;
-  int w = image.width + 2 * thickness;  
-  int h = image.height + 2 * thickness;
+    static void fancy(Image& image){
+      int gap = 5;
+      int line = 3;
+      int w = image.width + 2 * 20;  
+      int h = image.height + 2 * 20;
+      Image framed(w ,h);
 
-
-  Image framed(w ,h);
-
-  
- for (int x = 0; x < w; x++){
-  for (int y = 0; y < h; y++){
-    framed(x, y, 0) = 0;
-    framed(x, y, 1) = 0;
-    framed(x, y, 2) = 255;
-  }
-}
-
-
-
-  for (int i = 0; i < image.width; i++){
-    for (int j = 0; j < image.height; j++){
-      int d = min(min(i, j), min(image.width - 1 - i, image.height - 1 - j));
-      bool on_line = d >= gap && d < gap + line;
-
-
-        for (int k = 0; k < 3; k++){
-
-           framed(i + thickness, j + thickness, k) = on_line ? 255 : image(i, j, k);
-          
-
+      for (int x = 0; x < w; x++){
+        for (int y = 0; y < h; y++){
+          framed(x, y, 0) = 0;
+          framed(x, y, 1) = 0;
+          framed(x, y, 2) = 255;
         }
+      }
 
+      for (int i = 0; i < image.width; i++){
+        for (int j = 0; j < image.height; j++){
+          int d = std::min(std::min(i, j), std::min(image.width - 1 - i, image.height - 1 - j));
+          bool on_line = d >= gap && d < gap + line;
+          for (int k = 0; k < 3; k++){
+            framed(i + 20, j + 20, k) = on_line ? 255 : image(i, j, k);
+          }
+        }
+      }
+      image = framed;
     }
-  }
-
-   return framed;
-
-}
-
-
-
-
-
-
-
 
     static void blur_vertical(Image& image, int radius) {
       Image output_image(image.width, image.height);
@@ -694,35 +681,71 @@ static Image fancy(Image& image, int thickness){
       image = output_image;
     }
 
-    static void skew_vertical(Image& image, double angle_deg) {
+    // static void skew_vertical(Image& image, double angle_deg) {
+    //   double rad = angle_deg * (M_PI / 180.0);
+    //   int shift = static_cast<int>(image.width * std::tan(std::abs(rad)));
+    //   int new_height = image.height + shift;
+
+    //   Image output_image(image.width, new_height);
+
+    //   for (int x = 0; x < output_image.width; ++x) {
+    //     for (int y = 0; y < output_image.height; ++y) {
+    //       for (int c = 0; c < output_image.channels; ++c) {
+    //         output_image(x, y, c) = 255;
+    //       }
+    //     }
+    //   }
+
+    //   for (int x = 0; x < image.width; ++x) {
+    //     int y_shift = (angle_deg >= 0) ? static_cast<int>(x * std::tan(rad)) : static_cast<int>((image.width - 1 - x) * std::tan(std::abs(rad)));
+
+    //     for (int y = 0; y < image.height; ++y) {
+    //       int target_y = y + y_shift;
+    //       if (target_y >= 0 && target_y < new_height) {
+    //         for (int c = 0; c < image.channels; ++c) {
+    //           output_image(x, target_y, c) = image(x, y, c);
+    //         }
+    //       }
+    //     }
+    //   }
+    //   image = output_image;
+    // }
+
+    static void skew_horizontal(Image& image, double angle_deg) {
       double rad = angle_deg * (M_PI / 180.0);
-      int shift = static_cast<int>(image.width * std::tan(std::abs(rad)));
-      int new_height = image.height + shift;
+      double tan_angle = std::tan(rad);
+      double abs_tan = std::abs(tan_angle);
+      
+      int shift = static_cast<int>(image.height * abs_tan);
+      int new_width = image.width + shift;
 
-      Image output_image(image.width, new_height);
+      Image output_image(new_width, image.height);
 
-      for (int x = 0; x < output_image.width; ++x) {
-        for (int y = 0; y < output_image.height; ++y) {
-          for (int c = 0; c < output_image.channels; ++c) {
-            output_image(x, y, c) = 255;
-          }
-        }
-      }
+      // LOOP OVER THE DESTINATION IMAGE
+      for (int y = 0; y < output_image.height; ++y) {
+        // Calculate the horizontal shift for this row based on the Y position
+        // This elevates/shifts the bottom or top depending on the angle sign
+        int x_shift = (angle_deg >= 0) ? static_cast<int>((image.height - 1 - y) * tan_angle) : static_cast<int>(y * abs_tan);
 
-      for (int x = 0; x < image.width; ++x) {
-        int y_shift = (angle_deg >= 0) ? static_cast<int>(x * std::tan(rad)) : static_cast<int>((image.width - 1 - x) * std::tan(std::abs(rad)));
+        for (int x = 0; x < output_image.width; ++x) {
+          // Map BACKWARD horizontally to find the source pixel
+          int src_x = x - x_shift;
 
-        for (int y = 0; y < image.height; ++y) {
-          int target_y = y + y_shift;
-          if (target_y >= 0 && target_y < new_height) {
-            for (int c = 0; c < image.channels; ++c) {
-              output_image(x, target_y, c) = image(x, y, c);
+          if (src_x >= 0 && src_x < image.width) {
+            for (int c = 0; c < output_image.channels; ++c) {
+              output_image(x, y, c) = image(src_x, y, c);
+            }
+          } else {
+            // Background padding
+            for (int c = 0; c < output_image.channels; ++c) {
+              output_image(x, y, c) = 255; 
             }
           }
         }
       }
       image = output_image;
     }
+
 
   public: 
     Filter generate_filter(Filters filter_type) {
@@ -749,16 +772,20 @@ static Image fancy(Image& image, int thickness){
           return Filter(edge_detection);
         case Filters::OIL:
           return Filter(oil);
+        case Filters::FRAME:
+          return Filter(frame);
+        case Filters::FANCY:
+          return Filter(fancy);
         case Filters::LIGHT:
         case Filters::DARK:
         case Filters::ROTATE:
         case Filters::CROP:
-        case Filters::FRAME:
           throw std::invalid_argument("Error: This filter requires configuration arguments.");
         default:
           throw std::invalid_argument("Unknown filter type provided.");
       }
     }
+
     Filter generate_filter(Filters filter_type, uint8_t brightness_level) {
       switch (filter_type) {
         case Filters::LIGHT:
@@ -780,8 +807,11 @@ static Image fancy(Image& image, int thickness){
     Filter generate_filter(Filters filter_type, int x_radius, int y_radius) {
       if (filter_type == Filters::BLUR) {
         return Filter(blur, x_radius, y_radius);
+      } else if (filter_type == Filters::RESIZE) {
+        return Filter(resize, x_radius, y_radius);
+      } else {
+        throw std::invalid_argument("Error: This filter does not accept radius parameters.");
       }
-      throw std::invalid_argument("Error: This filter does not accept radius parameters.");
     }
 
     Filter generate_filter(Filters filter_type, int x, int y, int w, int h) {
@@ -791,16 +821,16 @@ static Image fancy(Image& image, int thickness){
       throw std::invalid_argument("Error: This filter does not accept these parameters.");
     }
 
-    Filter generate_filter(Filters filter_type, Image& image) {
+    Filter generate_filter(Filters filter_type, Image& image, int option) {
       if (filter_type == Filters::MERGE) {
-        return Filter(merge, image);
+        return Filter(merge, image, option);
       }
       throw std::invalid_argument("Error: This filter does not accept these parameters.");
     }
 
     Filter generate_filter(Filters filter_type, double angle) {
       if (filter_type == Filters::SKEW) {
-        return Filter(skew_vertical, angle);
+        return Filter(skew_horizontal, angle);
       }
       throw std::invalid_argument("Error: This filter does not accept an angle parameter.");
     }
@@ -1107,7 +1137,7 @@ void process_filter_selection(Filters choice, Filterable_image& active_image, Im
       }
 
       Image second_image(second_filename);
-      processor.generate_filter(choice, second_image).apply_to_image(active_image.get_image());
+      processor.generate_filter(choice, second_image, 1).apply_to_image(active_image.get_image());
       std::cout << UI::green << "\n[Queue] Added safe Merge Filter (Source: " << second_filename << ")." << UI::reset << "\n";
       break;
     }
@@ -1300,5 +1330,9 @@ void run_application_loop() {
 }
 
 int main() {
-  run_application_loop();
+  // run_application_loop();
+  Image img("luffy.jpg");
+  Image_processor processor;
+  processor.generate_filter(Filters::SKEW, 30.0).apply_to_image(img);
+  img.saveImage("skew.jpg");
 }

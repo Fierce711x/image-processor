@@ -1,14 +1,27 @@
-import { useState, useRef } from "react";
-import luffy from "../../luffy.jpg";
+import { useState } from "react";
+// import luffy from "../../luffy.jpg";
+import FiltersMenu from "./menu-components/filters-menu";
+import FlipMenu from "./menu-components/Flip-menu";
+import BrightnessMenu from "./menu-components/Brightness-menu";
+import BlurMenu from "./menu-components/Blur-menu";
+import ResizeMenu from "./menu-components/Resize-menu";
+import RotateMenu from "./menu-components/Rotate-menu";
+import CropMenu from "./menu-components/Crop-menu";
+import MergeMenu from "./menu-components/Merge-menu";
+import FrameMenu from "./menu-components/Frame-menu";
+import SkewMenu from "./menu-components/Skew-menu";
+import ImageDisplay from "./Image-display";
 function App() {
+  const [menu, setMenu] = useState("Filters");
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [loading, setLoading] = useState(false);
   const [loadedImage, setLoadedImage] = useState("");
-  const loadedImageStatusRef = useRef();
   const [filteredImage, setFilteredImage] = useState("");
-  const filteredImageStatusRef = useRef();
   async function handleImageUpload() {
-    setLoadedImage(luffy);
-    setFilteredImage(luffy);
     try {
+      setLoading(true);
+      // setLoadedImage(luffy);
+      // setFilteredImage(luffy);
       // loadedImageStatusRef.current.innerText = "Opening file picker...";
       const filePath = await window.openImagePickerDialog();
 
@@ -33,6 +46,8 @@ function App() {
     } catch (error) {
       // loadedImageStatusRef.current.innerText = "An unexpected error occurred.";
       console.error(error);
+    } finally {
+      setLoading(false);
     }
   }
   async function handleImageSave() {
@@ -49,11 +64,14 @@ function App() {
       }
     } catch (error) {
       console.error(error);
+    } finally {
+      setLoading(false);
     }
   }
-  async function handelApplyFilter(filter) {
+  async function handelApplyFilter(filter, ...args) {
     try {
-      const status = await window.applyFilter(filter);
+      setLoading(true);
+      const status = await window.applyFilter(filter, ...args);
       if (status !== "SUCCESS") throw new Error("filter not applied");
       const base64String = await window.getImageBase64();
       setFilteredImage(`data:image/png;base64,${base64String}`);
@@ -61,64 +79,79 @@ function App() {
     } catch (error) {
       // filteredImageStatusRef.current.innerText = "An unexpected error occured.";
       console.log(error);
+    } finally {
+      setLoading(false);
     }
   }
 
   async function handleResetFilteredImage() {
     try {
+      setLoading(true);
       const status = await window.resetFilteredImage();
       if (status !== "SUCCESS") throw new Error("image not reset");
       setFilteredImage(loadedImage);
     } catch (error) {
       console.log(error);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  let component;
+  switch (menu) {
+    case "Filters":
+      component = <FiltersMenu handelApplyFilter={handelApplyFilter} changeMenu={setMenu} loading={loading} />;
+      break;
+    case "Flip":
+      component = <FlipMenu handelApplyFilter={handelApplyFilter} changeMenu={setMenu} loading={loading} />;
+      break;
+    case "Lighten":
+    case "Darken":
+      component = <BrightnessMenu handelApplyFilter={handelApplyFilter} changeMenu={setMenu} type={menu} loading={loading} />;
+      break;
+    case "Blur":
+      component = <BlurMenu handelApplyFilter={handelApplyFilter} changeMenu={setMenu} loading={loading} dimensions={dimensions} />;
+      break;
+    case "Resize":
+      component = <ResizeMenu handelApplyFilter={handelApplyFilter} changeMenu={setMenu} loading={loading} />;
+      break;
+    case "Rotate":
+      component = <RotateMenu handelApplyFilter={handelApplyFilter} changeMenu={setMenu} loading={loading} />;
+      break;
+    case "Crop":
+      component = <CropMenu handelApplyFilter={handelApplyFilter} changeMenu={setMenu} loading={loading} dimensions={dimensions} />;
+      break;
+    case "Merge":
+      component = (
+        <MergeMenu
+          handelApplyFilter={handelApplyFilter}
+          changeMenu={setMenu}
+          loading={loading}
+          setLoading={setLoading}
+          dimensions={dimensions}
+        />
+      );
+      break;
+    case "Frame":
+      component = <FrameMenu handelApplyFilter={handelApplyFilter} changeMenu={setMenu} loading={loading} />;
+      break;
+    case "Skew":
+      component = <SkewMenu handelApplyFilter={handelApplyFilter} changeMenu={setMenu} loading={loading} />;
   }
   return (
     <>
       <div className="container">
-        <div className="image-display-container">
-          <h2>Apply C++ Image Filters</h2>
-          <div className="image-display">
-            <div className="img-frame">
-              <h3 ref={loadedImageStatusRef}>Loaded Image</h3>
-              <div className="image-container" style={{ border: loadedImage ? "none" : "1px dashed black" }}>
-                {loadedImage && <img src={loadedImage} alt="" />}
-              </div>
-            </div>
-            <div className="img-frame">
-              <h3 ref={filteredImageStatusRef}>Filtered Image</h3>
-              <div className="image-container" style={{ border: loadedImage ? "none" : "1px dashed black" }}>
-                {filteredImage && <img src={filteredImage} alt="" />}
-              </div>
-            </div>
-          </div>
-          <div className="options">
-            <button onClick={() => handleImageUpload()}>Load Image</button>
-            <button onClick={() => handleImageSave()}>Save Image</button>
-            <button onClick={() => handleResetFilteredImage()}>Reset Filters</button>
-          </div>
-        </div>
+        <ImageDisplay
+          filteredImage={filteredImage}
+          handleImageSave={handleImageSave}
+          handleImageUpload={handleImageUpload}
+          handleResetFilteredImage={handleResetFilteredImage}
+          setDimensions={setDimensions}
+          loading={loading}
+        />
         <div className="menu">
-          <h2>Filters</h2>
-          <div className="filter-menu">
-            <button onClick={() => handelApplyFilter("Invert")}>Invert Colors</button>
-            <button onClick={() => handelApplyFilter("Flip Horizontally")}>Flip Horizontally</button>
-            <button onClick={() => handelApplyFilter("Flip Vertically")}>Flip Vertically</button>
-            <button onClick={() => handelApplyFilter("Grayscale")}>Grayscale</button>
-            <button onClick={() => handelApplyFilter("Black & White")}>Black & White</button>
-            <button onClick={() => handelApplyFilter("Purple Tint")}>Purple Tint</button>
-            <button onClick={() => handelApplyFilter("Infrared")}>Infrared</button>
-            <button onClick={() => handelApplyFilter("Old Television")}>Old Television</button>
-            <button onClick={() => handelApplyFilter("Lighten")}>Lighten Brightness</button>
-            <button onClick={() => handelApplyFilter("Darken")}>Darken Brightness</button>
-            <button onClick={() => handelApplyFilter("Rotate")}>Rotate Image</button>
-            <button onClick={() => handelApplyFilter("Sunny")}>Sunny</button>
-            <button onClick={() => handelApplyFilter("Merge 2 Images")}>Merge 2 Images</button>
-            <button onClick={() => handelApplyFilter("Resize")}>Resize</button>
-            <button onClick={() => handelApplyFilter("Blur")}>Blur</button>
-            <button onClick={() => handelApplyFilter("Edge Detection")}>Edge Detection</button>
-            <button onClick={() => handelApplyFilter("Crop Image")}>Crop Image</button>
-          </div>
+          <h2>{menu}</h2>
+          {component}
         </div>
       </div>
     </>
