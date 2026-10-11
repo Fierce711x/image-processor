@@ -18,7 +18,7 @@
 #include <fstream>
 #include <filesystem>
 #include <cmath>
-
+#include <numbers>
 
 // ignore this class, this is for gui.
 
@@ -646,7 +646,7 @@ class Image_processor {
     }
 
     static void skew_vertical(Image& image, double angle_deg) {
-      double rad = angle_deg * (M_PI / 180.0);
+      double rad = angle_deg * (std::numbers::pi / 180.0);
       int shift = static_cast<int>(image.width * std::tan(std::abs(rad)));
       int new_height = image.height + shift;
 
@@ -676,7 +676,7 @@ class Image_processor {
     }
 
     static void skew_horizontal(Image& image, double angle_deg) {
-      double rad = angle_deg * (M_PI / 180.0);
+      double rad = angle_deg * (std::numbers::pi / 180.0);
       double tan_angle = std::tan(rad);
       double abs_tan = std::abs(tan_angle);
       
