@@ -60,6 +60,7 @@ body {
   min-height: 360px;
   display: flex;
   justify-content: center;
+  align-items: center;
   /* border-radius: 15px; */
 }
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-// import luffy from "../../luffy.jpg";
+import { flushSync } from "react-dom";
 import FiltersMenu from "./menu-components/filters-menu";
 import FlipMenu from "./menu-components/Flip-menu";
 import BrightnessMenu from "./menu-components/Brightness-menu";
@@ -15,11 +15,16 @@ function App() {
   const [menu, setMenu] = useState("Filters");
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
   const [loadedImage, setLoadedImage] = useState("");
   const [filteredImage, setFilteredImage] = useState("");
+  const [error, setError] = useState("");
+
   async function handleImageUpload() {
     try {
-      setLoading(true);
+      flushSync(() => {
+        setLoading(() => true);
+      });
       // setLoadedImage(luffy);
       // setFilteredImage(luffy);
       // loadedImageStatusRef.current.innerText = "Opening file picker...";
@@ -38,7 +43,7 @@ function App() {
         // loadedImageStatusRef.current.innerText = "Error parsing image file with stb_image.";
         return;
       }
-
+      setError("");
       setLoadedImage(`data:image/png;base64,${base64Data}`);
       setFilteredImage(`data:image/png;base64,${base64Data}`);
       // loadedImageStatusRef.current.innerText = "Image successfully loaded!";
@@ -48,11 +53,17 @@ function App() {
       console.error(error);
     } finally {
       setLoading(false);
+      setLoadingMessage("Image Load Successful");
     }
   }
   async function handleImageSave() {
+    if (!filteredImage) return setError("No Image Loaded");
     try {
+      flushSync(() => {
+        setLoading(() => true);
+      });
       const result = await window.saveActiveImageDialog();
+      console.log(result);
       if (result === "CANCELLED") {
         throw new Error("CANCELLED");
       } else if (result === "WRITE_FAILED") {
@@ -66,9 +77,11 @@ function App() {
       console.error(error);
     } finally {
       setLoading(false);
+      setLoadingMessage("Image Save Successful");
     }
   }
   async function handelApplyFilter(filter, ...args) {
+    if (!filteredImage) return setError("No Image Loaded");
     try {
       setLoading(true);
       const status = await window.applyFilter(filter, ...args);
@@ -81,10 +94,12 @@ function App() {
       console.log(error);
     } finally {
       setLoading(false);
+      setLoadingMessage("Filter Apply Successful");
     }
   }
 
   async function handleResetFilteredImage() {
+    if (!filteredImage) return setError("No Image Loaded");
     try {
       setLoading(true);
       const status = await window.resetFilteredImage();
@@ -94,6 +109,7 @@ function App() {
       console.log(error);
     } finally {
       setLoading(false);
+      setLoadingMessage("Image Reset Successful");
     }
   }
 
@@ -148,6 +164,8 @@ function App() {
           handleResetFilteredImage={handleResetFilteredImage}
           setDimensions={setDimensions}
           loading={loading}
+          error={error}
+          loadingMessage={loadingMessage}
         />
         <div className="menu">
           <h2>{menu}</h2>
