@@ -54,7 +54,7 @@ if(NOT EXISTS "${tinyfiledialogs_source_SOURCE_DIR}/src/tinyfiledialogs.c")
 endif()
 
 add_executable(app
-    ui.cpp
+    main.cpp
     "${tinyfiledialogs_source_SOURCE_DIR}/src/tinyfiledialogs.c"
 )
 

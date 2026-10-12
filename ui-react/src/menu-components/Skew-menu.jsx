@@ -9,7 +9,7 @@ export default function SkewMenu({ handelApplyFilter, changeMenu, loading }) {
       <input
         type="number"
         id="deg"
-        min="-89"
+        min="0"
         max="89"
         value={angle}
         onChange={e => {

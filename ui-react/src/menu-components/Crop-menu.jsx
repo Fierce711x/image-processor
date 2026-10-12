@@ -2,8 +2,8 @@ import { useState } from "react";
 export default function CropMenu({ handelApplyFilter, changeMenu, loading, dimensions }) {
   const [xStart, setXStart] = useState(0);
   const [yStart, setYStart] = useState(0);
-  const [xRad, setXRad] = useState(500);
-  const [yRad, setYRad] = useState(500);
+  const [xRad, setXRad] = useState(0);
+  const [yRad, setYRad] = useState(0);
   const imageWidth = dimensions.width;
   const imageHeight = dimensions.height;
   return (
